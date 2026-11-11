@@ -21,6 +21,7 @@ Report problems as a GitHub issue on this repository.
 | Ballot ids and receipt codes are random, never sequential, so storage order does not reveal voting order. The receipt code is not derived from the voting code. | Ballot creation code; no `NEWSEQUENTIALID`, `IDENTITY` or `DEFAULT SYSDATETIME` on any ballot table |
 | `VotingCodes` and `Ballots` share no column except the election id. | Schema migration |
 | Casting a ballot is one transaction: mark the code used, insert the ballot. Nothing records which code produced which ballot. | The cast-ballot code and its tests |
+| If an election randomizes question and option order, the shuffle runs in the voter's browser. The order shown is never sent to the server, stored or logged, and is not derived from the voting code. Ballots store selections with no order. | The ballot page script (shuffle uses `crypto.getRandomValues`); the cast request body carries no order; schema has no order column |
 | The voter never signs in and the voting site has no accounts, so there is no identity to attach. | Voting site has no authentication code; `app.yml` and `infra/main.tf` configure no auth for it |
 | Codes are distributed by draw: the chair signs a member off on the roster, the member picks any folded slip from a pile. The roster says who voted; the slips say nothing about who holds them. | Procedure, not code. The chair must keep the roster off the system |
 
