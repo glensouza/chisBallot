@@ -87,11 +87,44 @@ or tablet at the table, facing away from the room."
 the vote by paper rules for you, or we note one spoiled slip. An unused slip
 is counted at the end like an unused paper ballot."
 
-**Demo here if you are doing one.**
+**Go straight to the demo slide.** The script is in `docs/demo.md`.
 
 ---
 
-## Slide 4: No one can tell who voted for whom (3 minutes)
+## Slide 4: Let's try it now (about 7 minutes)
+
+**Purpose:** let everyone vote once on a practice question. This does more
+than any other slide.
+
+**Before the meeting:** reset and open the demo on the admin site, load the
+demo page on your phone early (the free database can take up to a minute to
+wake), do one test vote, then reset again. Keep screenshots of each step in
+case the internet fails. The full script and the reset steps are in
+`docs/demo.md`.
+
+**Say:**
+- "This is a practice vote. Nothing counts. Please scan the code."
+- "At a real vote this would be the slip you draw from the pile. Today the
+  button hands you one."
+- "Look at your neighbor's phone. The questions and options are in a
+  different order. Nobody can copy from anyone."
+- When turnout climbs on the projector: "Turnout is always public. It shows
+  how many have voted, never what."
+- "I turned live results on for this practice. For a real vote I decide that
+  first, and the default is off."
+- After closing, open the audit page: "Find your receipt code. Your code
+  never leaves your phone."
+- Press **Recount in your browser**: "Anyone can add the ballots up
+  themselves. This does it here, and it matches."
+- Open the pre-filled tie demo: "If two people tie for the last seat, the
+  site does not pick. It says revote needed."
+
+**If it fails:** "This is exactly when we switch to paper." Walk through the
+screenshots and carry on.
+
+---
+
+## Slide 5: No one can tell who voted for whom (3 minutes)
 
 **Purpose:** this is the most important slide for the union. Go slowly.
 
@@ -120,7 +153,7 @@ everyone voted. That is true of paper too."
 
 ---
 
-## Slide 5: One member, one vote (2 minutes)
+## Slide 6: One member, one vote (2 minutes)
 
 **Purpose:** show that nobody can vote twice and nobody uninvited can vote.
 
@@ -146,17 +179,21 @@ starts. An extra slip would have a code the site does not recognise."
 
 ---
 
-## Slide 6: Anyone can check the count (2 minutes)
+## Slide 7: Anyone can check the count (2 minutes)
 
 **Purpose:** the one thing this does that a ballot box cannot.
 
 **Say:**
 - "With a ballot box, we trust the people counting. Here, every voter can
   check for themselves."
-- "When results are published, so is the list of receipt codes. You look for
-  yours. If it is there, your ballot was counted."
-- "The full list of anonymous ballots is published too. Anyone who wants to
-  can add them up by hand and confirm the totals."
+- "Every vote has a public audit page. After the vote closes it lists every
+  receipt code. You look for yours. If it is there, your ballot was counted.
+  The search runs on your phone, so your code is never sent to us."
+- "The full list of anonymous ballots is on that page too, to download. Anyone
+  who wants to can add them up by hand, or press the recount button and have
+  the page do it."
+- "The page also shows exactly which version of the code the site is
+  running, with a link to it."
 - "All of the code is public. A teacher, a parent or someone from district
   IT can read exactly what the site does."
 - Point at the sample receipt: "It proves a ballot was counted. It does not
@@ -169,7 +206,61 @@ checks are in the open."
 
 ---
 
-## Slide 7: How it compares with paper (2 minutes)
+## Slide 8: Our data stays ours (1 minute)
+
+**Purpose:** answer "who sees our data?" before anyone asks, without
+overclaiming.
+
+**Say:**
+- "There is no voting company in the middle. No ballot vendor, no
+  counting service, no account with anyone who sells voting software. The
+  code is open and we run it ourselves."
+- "There are no analytics, no ads and no trackers on the site."
+- "It does run on public cloud: Microsoft Azure hosts the site and the
+  database, Cloudflare handles the domain and a bot check, and GitHub holds
+  the code. Those companies run the machines, like for any website. What
+  they hold is anonymous ballots. Nothing stored says who cast which one."
+
+**Do not say** that nobody can see the data, or that no third-party service
+is involved. Both are false, and someone in the room will notice. Azure also
+keeps its own backups and logs that we do not control; that limit is written
+down in `docs/anonymity-and-security.md`.
+
+**If asked "Who can see our data?"** "The hosting companies can see what is
+stored, which is anonymous ballots. The admins can see the same. Neither can
+see who voted for what, because we never store it."
+
+---
+
+## Slide 9: The chair sets up each vote (2 minutes)
+
+**Purpose:** show the options and why the risky ones start switched off.
+
+**Say:**
+- "A question can fill more than one seat. Three board members out of ten
+  candidates is one question. President and vice president are separate
+  questions. Only who wins matters, not the order."
+- "If two people tie for the last seat, the site does not pick for us, and
+  neither do I. It marks the result revote needed. Clear winners keep their
+  seats and only the tied choices go to a new vote."
+- "Live results are off unless I turn them on before the vote. A total that
+  moves right after a known member votes can point at that member. Turnout,
+  how many have voted, is always public."
+- "Questions and options can be shuffled for each voter so nobody can copy a
+  neighbor and results do not arrive in a pattern."
+- "A question can allow a write-in name. It is off unless I turn it on,
+  because a typed word can be used to prove how you voted. Names show only
+  after the vote closes."
+- "All of these are fixed once the vote opens. I cannot change them
+  halfway."
+
+**If asked "Why would you ever turn live results on?"** "For a low-stakes
+vote where seeing the count build is useful, like a show of hands. Not for
+anything where one person's choice matters."
+
+---
+
+## Slide 10: How it compares with paper (2 minutes)
 
 **Purpose:** be even-handed. Do not read every cell.
 
@@ -187,7 +278,7 @@ checks are in the open."
 
 ---
 
-## Slide 8: Small, simple and free to run (1 minute)
+## Slide 11: Small, simple and free to run (1 minute)
 
 **Purpose:** remove cost and data worries.
 
@@ -206,7 +297,7 @@ site. Only people we invite can create a vote or print slips."
 
 ---
 
-## Slide 9: The ask: a side-by-side pilot (1 minute, then questions)
+## Slide 12: The ask: a side-by-side pilot (1 minute, then questions)
 
 **Purpose:** end on a small, safe decision.
 
@@ -235,6 +326,11 @@ site. Only people we invite can create a vote or print slips."
 | Who has reviewed it? | The code is public so anyone can. Offer the union the chance to name a reviewer before the pilot. |
 | What happens to old votes? | Results, receipt lists and audit numbers stay published. Unused codes are deleted when a vote closes. |
 | What does it cost if we outgrow it? | Nothing changes at our size. It is built on free tiers meant for small projects. |
+| Do you use any third-party services? | Yes: Microsoft Azure for hosting, Cloudflare for the domain and a bot check, GitHub for the code. There is no voting vendor, and no analytics or ad trackers. |
+| What if there is a tie? | The site does not break it. The result says revote needed, clear winners keep their seats, and the tied choices go to a new vote with fresh slips. |
+| Can the chair see how people voted? | No. Ballots hold no name, code or time. The chair sees turnout, and results only when the vote closes, or live if that was switched on beforehand. |
+| Can someone type something silly as a write-in? | Write-ins are off unless the chair turns them on, are limited in length and characters, and show only after the vote closes. |
+| How do I know the running site is the code on GitHub? | The audit page shows the commit the site was built from and links to the deploy record. That narrows the gap but is not a cryptographic proof. |
 | Why not buy a commercial product? | Commercial tools start at a monthly fee for up to 50 voters and their code cannot be inspected. This is free and open. |
 
 ## If the discussion gets stuck
