@@ -14,7 +14,9 @@ CREATE TABLE Elections (
     Name        nvarchar(200)    NOT NULL,
     Status      tinyint          NOT NULL,          -- 0 Draft, 1 Open, 2 Closed
     CodesIssued int              NOT NULL DEFAULT 0,-- fixed when the slips are printed
-    ShowLiveResults bit          NOT NULL DEFAULT 0 -- set in Draft, frozen once Open
+    ShowLiveResults bit          NOT NULL DEFAULT 0,-- set in Draft, frozen once Open
+    ShuffleContests bit          NOT NULL DEFAULT 0,-- each voter sees contests in their own random order
+    ShuffleChoices  bit          NOT NULL DEFAULT 0 -- each voter sees choices in their own random order
 );
 
 -- One question on the ballot: an officer race or a yes/no motion.
@@ -22,7 +24,9 @@ CREATE TABLE Contests (
     Id            uniqueidentifier NOT NULL PRIMARY KEY,
     ElectionId    uniqueidentifier NOT NULL REFERENCES Elections (Id),
     Title         nvarchar(200)    NOT NULL,
-    MaxSelections int              NOT NULL DEFAULT 1,
+    Seats         int              NOT NULL DEFAULT 1, -- winners to elect; "top 3" is Seats = 3
+    MaxSelections int              NOT NULL DEFAULT 1, -- most picks one voter may make
+    AllowWriteIn  bit              NOT NULL DEFAULT 0, -- voters may type a name not on the list
     SortOrder     int              NOT NULL
 );
 
@@ -55,6 +59,16 @@ CREATE TABLE BallotSelections (
     ChoiceId  uniqueidentifier NOT NULL REFERENCES Choices (Id),
     PRIMARY KEY (BallotId, ContestId, ChoiceId)
 );
+
+-- Typed-in names, only for contests with AllowWriteIn. NameKey is the
+-- normalized form used for counting (see "Results and ties").
+CREATE TABLE BallotWriteIns (
+    BallotId  uniqueidentifier NOT NULL REFERENCES Ballots (Id),
+    ContestId uniqueidentifier NOT NULL REFERENCES Contests (Id),
+    Name      nvarchar(60)     NOT NULL,
+    NameKey   nvarchar(60)     NOT NULL,
+    PRIMARY KEY (BallotId, ContestId, NameKey)
+);
 ```
 
 ## Rules
@@ -64,7 +78,50 @@ CREATE TABLE BallotSelections (
 1. `UPDATE VotingCodes SET Used = 1 WHERE ElectionId = @e AND CodeHash = @h AND Used = 0`,
    joined to an election whose `Status` is Open. If no row changes, stop:
    the code is unknown, already used, or belongs to another election.
-2. Insert the ballot and its selections.
+2. Insert the ballot, its selections and its write-ins. For each contest,
+   choices plus write-ins must not exceed `MaxSelections`, and write-ins are
+   refused unless the contest has `AllowWriteIn`.
+
+**Random order (optional, off by default)**
+
+- With `ShuffleContests` and `ShuffleChoices`, each voter sees the questions
+  and the options in an order of their own. People sitting near each other
+  cannot copy a neighbor's screen, and a ballot does not tell you who
+  voted early or in what rhythm.
+- The shuffle happens in the voter's browser, using the browser's
+  cryptographic random generator. The server never learns the order shown.
+  The order is not stored, not logged and not derived from the voting code,
+  so it can never link a ballot to a slip.
+- `SortOrder` is the fixed order used on every published page. The ballot
+  stores selections without any order, so it is the same however the voter
+  saw the screen.
+- A write-in box, when allowed, always stays last in its contest.
+
+**Results and ties**
+
+- Each contest counts one vote per choice per ballot. Write-in names are
+  counted by `NameKey`: the name trimmed, inner whitespace collapsed and
+  case folded. No one can merge or edit write-ins by hand, so counts follow
+  fixed rules and the chair cannot reshape them.
+- Choices are ranked by votes. The top `Seats` are the winners.
+- **A tie that decides who wins is a problem, never a coin flip.** If the
+  last winning place and the first non-winning place have equal votes, the
+  contest is marked **Tie: revote needed**. Choices clearly above the tie
+  keep their seats; the tied choices and the number of seats still open are
+  listed. Equal totals in a yes/no motion, or when nobody got a vote, are
+  ties too.
+- Equal totals among choices that are all inside the top `Seats` do not change
+  who wins, so they are shown as equal ranks and are not a problem.
+- The tie check is one pure function of the counts, covered by tests.
+- A closed election cannot be reopened, so a revote is a **new election**
+  containing only the unresolved contest, its tied choices and the open
+  seats, with fresh slips. The admin site creates it in one step and the
+  results page links the two.
+- Write-ins carry a risk the other choices do not: a voter can type something
+  distinctive to prove how they voted, and the full ballot list is public.
+  So the name is limited to 60 characters of letters, spaces, hyphens,
+  apostrophes and periods, and write-in names appear only once the election
+  is Closed. Live results, when on, show write-ins as a single combined count.
 
 **Election lifecycle**
 
