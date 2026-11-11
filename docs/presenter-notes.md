@@ -206,7 +206,33 @@ checks are in the open."
 
 ---
 
-## Slide 8: The chair sets up each vote (2 minutes)
+## Slide 8: Our data stays ours (1 minute)
+
+**Purpose:** answer "who sees our data?" before anyone asks, without
+overclaiming.
+
+**Say:**
+- "There is no voting company in the middle. No ballot vendor, no
+  counting service, no account with anyone who sells voting software. The
+  code is open and we run it ourselves."
+- "There are no analytics, no ads and no trackers on the site."
+- "It does run on public cloud: Microsoft Azure hosts the site and the
+  database, Cloudflare handles the domain and a bot check, and GitHub holds
+  the code. Those companies run the machines, like for any website. What
+  they hold is anonymous ballots. Nothing stored says who cast which one."
+
+**Do not say** that nobody can see the data, or that no third-party service
+is involved. Both are false, and someone in the room will notice. Azure also
+keeps its own backups and logs that we do not control; that limit is written
+down in `docs/anonymity-and-security.md`.
+
+**If asked "Who can see our data?"** "The hosting companies can see what is
+stored, which is anonymous ballots. The admins can see the same. Neither can
+see who voted for what, because we never store it."
+
+---
+
+## Slide 9: The chair sets up each vote (2 minutes)
 
 **Purpose:** show the options and why the risky ones start switched off.
 
@@ -234,7 +260,7 @@ anything where one person's choice matters."
 
 ---
 
-## Slide 9: How it compares with paper (2 minutes)
+## Slide 10: How it compares with paper (2 minutes)
 
 **Purpose:** be even-handed. Do not read every cell.
 
@@ -252,7 +278,7 @@ anything where one person's choice matters."
 
 ---
 
-## Slide 10: Small, simple and free to run (1 minute)
+## Slide 11: Small, simple and free to run (1 minute)
 
 **Purpose:** remove cost and data worries.
 
@@ -271,7 +297,7 @@ site. Only people we invite can create a vote or print slips."
 
 ---
 
-## Slide 11: The ask: a side-by-side pilot (1 minute, then questions)
+## Slide 12: The ask: a side-by-side pilot (1 minute, then questions)
 
 **Purpose:** end on a small, safe decision.
 
@@ -300,6 +326,7 @@ site. Only people we invite can create a vote or print slips."
 | Who has reviewed it? | The code is public so anyone can. Offer the union the chance to name a reviewer before the pilot. |
 | What happens to old votes? | Results, receipt lists and audit numbers stay published. Unused codes are deleted when a vote closes. |
 | What does it cost if we outgrow it? | Nothing changes at our size. It is built on free tiers meant for small projects. |
+| Do you use any third-party services? | Yes: Microsoft Azure for hosting, Cloudflare for the domain and a bot check, GitHub for the code. There is no voting vendor, and no analytics or ad trackers. |
 | What if there is a tie? | The site does not break it. The result says revote needed, clear winners keep their seats, and the tied choices go to a new vote with fresh slips. |
 | Can the chair see how people voted? | No. Ballots hold no name, code or time. The chair sees turnout, and results only when the vote closes, or live if that was switched on beforehand. |
 | Can someone type something silly as a write-in? | Write-ins are off unless the chair turns them on, are limited in length and characters, and show only after the vote closes. |
