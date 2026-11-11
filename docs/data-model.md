@@ -10,10 +10,11 @@ another's.
 ```sql
 CREATE TABLE Elections (
     Id          uniqueidentifier NOT NULL PRIMARY KEY,
-    Slug        nvarchar(60)     NOT NULL UNIQUE,   -- chisballot.org/e/{slug}
+    Slug        nvarchar(60)     NOT NULL UNIQUE,   -- vote.chisballot.org/e/{slug}
     Name        nvarchar(200)    NOT NULL,
     Status      tinyint          NOT NULL,          -- 0 Draft, 1 Open, 2 Closed
-    CodesIssued int              NOT NULL DEFAULT 0 -- fixed when the slips are printed
+    CodesIssued int              NOT NULL DEFAULT 0,-- fixed when the slips are printed
+    ShowLiveResults bit          NOT NULL DEFAULT 0 -- set in Draft, frozen once Open
 );
 
 -- One question on the ballot: an officer race or a yes/no motion.
@@ -73,8 +74,18 @@ CREATE TABLE BallotSelections (
 | Open | Cast ballots only. Contests, choices and codes are frozen |
 | Closed | Read only. Results, receipt list and audit numbers are published |
 
-- Results are hidden until the election is closed, so a running tally can
-  never hint at how the latest voter voted.
+- **Turnout is always public**: codes used out of codes issued, updated near
+  real time while the election is Open.
+- **Results are hidden until the election is closed**, unless the chair
+  turned on `ShowLiveResults` for that election while it was still Draft.
+  With it on, running tallies (counts per choice, nothing else) are shown
+  near real time while Open. With it off, a running tally can never hint at
+  how the latest voter voted. The flag defaults to off and cannot change once
+  the election is Open.
+- The receipt list and the full anonymous ballot list are published only at
+  Closed, whatever the flag says.
+- Near real time means the page polls the API every few seconds and the API
+  caches its answer briefly. Static Web Apps has no push channel.
 - Closing an election deletes its unused codes after recording how many
   there were.
 - A closed election cannot be reopened. Run a new one instead.
@@ -96,13 +107,25 @@ CREATE TABLE BallotSelections (
 
 With a small board, the result itself can reveal votes: a unanimous outcome
 tells everyone how each member voted. No ballot system, paper included,
-avoids this.
+avoids this. Live results make it worse: a tally that moves right after a
+known member signs off points at that member's vote. The chair should turn
+live results on only for votes where that does not matter.
+
+## Addresses
+
+| Address | What it is |
+|---|---|
+| www.chisballot.org | Landing page on GitHub Pages. `chisballot.org` redirects here |
+| vote.chisballot.org | Voting site. The root says a slip's QR code is needed to vote |
+| vote.chisballot.org/v/#{code} | A voter's ballot. The code is in the URL fragment, which the browser never sends to a server, so it cannot reach request logs, the CDN or a referrer header |
+| vote.chisballot.org/e/{slug} | Election page: live turnout, live results if enabled, full results once Closed |
+| admin.chisballot.org | Admin site |
 
 ## Two deployments
 
 | | Voting site | Admin site |
 |---|---|---|
-| Address | chisballot.org | admin.chisballot.org |
+| Address | vote.chisballot.org | admin.chisballot.org |
 | Sign-in | None. A slip's code is the only credential | Required on every page and API call; invited admins only |
 | Database user | `chisballot_vote` | `chisballot_admin` |
 | Can do | Cast a ballot, read published results | Create elections, contests and choices; generate codes; open and close |

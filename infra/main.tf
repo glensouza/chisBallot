@@ -96,7 +96,7 @@ locals {
 
 # ---------------------------------------------------------------------------
 # Apps: two separate Static Web Apps (free plan), each with its own API
-#   vote   chisballot.org        public, no sign-in, no admin code or endpoints
+#   vote   vote.chisballot.org   public, no sign-in, no admin code or endpoints
 #   admin  admin.chisballot.org  every route requires a signed-in, invited admin
 # ---------------------------------------------------------------------------
 
@@ -123,6 +123,6 @@ resource "azurerm_static_web_app" "admin" {
 
   app_settings = {
     "SqlConnectionString" = local.sql_connection_admin
-    "PublicSiteUrl"       = "https://${var.domain_name}"
+    "PublicSiteUrl"       = "https://vote.${var.domain_name}"
   }
 }

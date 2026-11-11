@@ -2,13 +2,34 @@
 # Cloudflare: DNS for the domain and the Turnstile widget on the ballot page
 # ---------------------------------------------------------------------------
 
-# Records are DNS-only (not proxied) so Azure can validate the domain and
-# issue its own certificate.
-resource "cloudflare_dns_record" "apex" {
+# Records are DNS-only (not proxied) so GitHub and Azure can validate the
+# domains and issue their own certificates.
+
+# Landing page on GitHub Pages. www is the Pages custom domain; the apex has
+# the Pages addresses so GitHub redirects chisballot.org to www.chisballot.org.
+locals {
+  github_pages_ipv4 = ["185.199.108.153", "185.199.109.153", "185.199.110.153", "185.199.111.153"]
+  github_pages_ipv6 = ["2606:50c0:8000::153", "2606:50c0:8001::153", "2606:50c0:8002::153", "2606:50c0:8003::153"]
+}
+
+resource "cloudflare_dns_record" "apex_a" {
+  for_each = toset(local.github_pages_ipv4)
+
   zone_id = var.cloudflare_zone_id
   name    = var.domain_name
-  type    = "CNAME" # flattened by Cloudflare at the apex
-  content = azurerm_static_web_app.this.default_host_name
+  type    = "A"
+  content = each.value
+  ttl     = 1
+  proxied = false
+}
+
+resource "cloudflare_dns_record" "apex_aaaa" {
+  for_each = toset(local.github_pages_ipv6)
+
+  zone_id = var.cloudflare_zone_id
+  name    = var.domain_name
+  type    = "AAAA"
+  content = each.value
   ttl     = 1
   proxied = false
 }
@@ -17,33 +38,30 @@ resource "cloudflare_dns_record" "www" {
   zone_id = var.cloudflare_zone_id
   name    = "www.${var.domain_name}"
   type    = "CNAME"
+  content = var.github_pages_host
+  ttl     = 1
+  proxied = false
+}
+
+# Voting site: vote.chisballot.org
+resource "cloudflare_dns_record" "vote" {
+  zone_id = var.cloudflare_zone_id
+  name    = "vote.${var.domain_name}"
+  type    = "CNAME"
   content = azurerm_static_web_app.this.default_host_name
   ttl     = 1
   proxied = false
 }
 
-resource "azurerm_static_web_app_custom_domain" "apex" {
+resource "azurerm_static_web_app_custom_domain" "vote" {
   static_web_app_id = azurerm_static_web_app.this.id
-  domain_name       = var.domain_name
-  validation_type   = "dns-txt-token"
-}
-
-resource "cloudflare_dns_record" "apex_validation" {
-  zone_id = var.cloudflare_zone_id
-  name    = "${var.apex_txt_record_name}.${var.domain_name}"
-  type    = "TXT"
-  content = "\"${azurerm_static_web_app_custom_domain.apex.validation_token}\""
-  ttl     = 300
-}
-
-resource "azurerm_static_web_app_custom_domain" "www" {
-  static_web_app_id = azurerm_static_web_app.this.id
-  domain_name       = "www.${var.domain_name}"
+  domain_name       = "vote.${var.domain_name}"
   validation_type   = "cname-delegation"
 
-  depends_on = [cloudflare_dns_record.www]
+  depends_on = [cloudflare_dns_record.vote]
 }
 
+# Admin site: admin.chisballot.org
 resource "cloudflare_dns_record" "admin" {
   zone_id = var.cloudflare_zone_id
   name    = "admin.${var.domain_name}"
@@ -64,6 +82,6 @@ resource "azurerm_static_web_app_custom_domain" "admin" {
 resource "cloudflare_turnstile_widget" "vote" {
   account_id = var.cloudflare_account_id
   name       = "chisBallot ballot page"
-  domains    = [var.domain_name, "www.${var.domain_name}"]
+  domains    = ["vote.${var.domain_name}"]
   mode       = "managed"
 }

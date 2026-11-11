@@ -17,7 +17,7 @@ variable "sql_location" {
 }
 
 variable "domain_name" {
-  description = "Apex domain served by the app."
+  description = "Apex domain. The apex and www serve the GitHub Pages landing page; vote. and admin. are the two apps."
   type        = string
   default     = "chisballot.org"
 }
@@ -32,8 +32,8 @@ variable "cloudflare_account_id" {
   type        = string
 }
 
-variable "apex_txt_record_name" {
-  description = "Host name of the TXT record Azure checks to validate the apex domain. Confirm against the value the Azure portal shows for the custom domain."
+variable "github_pages_host" {
+  description = "Default GitHub Pages host of the account that owns the public repo. The www record points here; do not include the repository name."
   type        = string
-  default     = "_dnsauth"
+  default     = "glensouza.github.io"
 }
