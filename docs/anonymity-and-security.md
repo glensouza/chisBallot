@@ -65,6 +65,9 @@ refused.
 |---|---|
 | At close, the receipt list and every anonymous ballot are published, so anyone can recount, and each voter can find their own receipt code in the list. | Results-publishing code |
 | Audit numbers are published with every result: codes issued, codes used, ballots counted. Used must equal counted. | Audit calculation and its test |
+| Every election has a public audit page, `/audit/{slug}`, with the audit numbers, the receipt list, every anonymous ballot as a download, and a recount that runs in the browser. Receipt lookup happens in the browser and the receipt is never sent to the server. | Audit page code; the page makes no request containing a receipt code (`docs/audit-page.md`) |
+| The published ballot list is ordered by receipt code, which is random, never by storage order, and carries no time or sequence number. | Audit page query and download code |
+| The page shows the commit the site was built from, linked to the repository and the deploy run. | Build step that stamps the commit; the workflows in `.github/workflows/` |
 | A closed election cannot be reopened or changed. | Status transition code and its test |
 | A tie that decides who wins is flagged "revote needed" and never broken by the system or the chair. The revote is a new election. | Tie-check function and its tests |
 | Write-ins are counted by a fixed normalization and cannot be merged or edited by hand. | Write-in counting code and its tests |
@@ -104,8 +107,9 @@ An honest audit needs the weak points too.
   write-ins off where a bought or coerced vote is a concern.
 - **The voter's own device.** A shoulder-surfer, a browser extension or a
   photo of the receipt screen is outside what a website can prevent.
-- **The deployed code matching this repository.** The workflows deploy from
-  `main` and the run history is public, but there is no cryptographic proof
-  that the running site is the code you read.
+- **The deployed code matching this repository.** The audit page shows the
+  commit the site was built from and links to the deploy run, so you can
+  compare it to the code you read. There is still no cryptographic proof
+  that the running site is that build.
 - **Paper is still the fallback.** During any pilot the paper result remains
   official.
