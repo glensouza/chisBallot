@@ -141,6 +141,9 @@ CREATE TABLE BallotWriteIns (
   the election is Open.
 - The receipt list and the full anonymous ballot list are published only at
   Closed, whatever the flag says.
+- The audit page (`/audit/{slug}`) shows the three audit counts while Open and
+  everything else only at Closed. The published ballot list is ordered by
+  receipt code, never by storage order.
 - Near real time means the page polls the API every few seconds and the API
   caches its answer briefly. Static Web Apps has no push channel.
 - Closing an election deletes its unused codes after recording how many
@@ -176,6 +179,7 @@ live results on only for votes where that does not matter.
 | vote.chisballot.org | Voting site. The root says a slip's QR code is needed to vote |
 | vote.chisballot.org/v/#{code} | A voter's ballot. The code is in the URL fragment, which the browser never sends to a server, so it cannot reach request logs, the CDN or a referrer header |
 | vote.chisballot.org/e/{slug} | Election page: live turnout, live results if enabled, full results once Closed |
+| vote.chisballot.org/audit/{slug} | Audit page: audit numbers, receipt list, every anonymous ballot, in-browser recount and the deployed commit. See `docs/audit-page.md` |
 | admin.chisballot.org | Admin site |
 
 ## Two deployments
