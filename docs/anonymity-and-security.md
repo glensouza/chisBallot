@@ -78,7 +78,18 @@ refused.
 | The two sites use two database users with different rights. The admin user cannot read or change the ballots of an open election. | `chisballot_vote` and `chisballot_admin` grants in the migration; comments in `infra/main.tf` |
 | Everything runs from this public repository. Infrastructure is declared in `infra/` and deployed by the workflows in `.github/workflows/`, not set up by hand. | `infra/`, `.github/workflows/` and the Actions run history |
 
-## 7. What this does not protect against
+## 7. The demo cannot touch a real vote
+
+| Measure | Where to check |
+|---|---|
+| A demo is marked when it is created and can never change into a real election, or the reverse. | `IsDemo` in the schema; admin API and its tests |
+| The public site can issue a code only through one database procedure that refuses any election that is not a demo. Real elections have no code-issuing endpoint, and the voting database user has no insert right on `VotingCodes`. | The procedure and the `chisballot_vote` grants in the migration; vote API routes |
+| Resetting a demo works only on demo elections. | Admin API and its tests |
+| A demo follows every anonymity rule above. | It runs the same code path as a real vote |
+
+Details: `docs/demo.md`.
+
+## 8. What this does not protect against
 
 An honest audit needs the weak points too.
 
