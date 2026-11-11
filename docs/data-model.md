@@ -173,6 +173,17 @@ CREATE TABLE BallotWriteIns (
 - Codes issued, codes used, ballots counted (used must equal counted)
 - The receipt list, and every anonymous ballot, so anyone can recount
 
+## Implementation
+
+The schema, the two database users and their grants are the SQL scripts in
+`src/ChisBallot.Data/Migrations/`. The sites reach ballots only through
+stored procedures: `CastBallot`, `GetTurnout`, `GetResults` (voting and admin
+site) and `CloseElection` (admin site). Neither database user has any
+table-level right to read ballots, codes or tallies, so the database itself
+refuses an early peek, whatever the application code does. A trigger on
+`Elections` enforces the lifecycle: Draft to Open to Closed, Closed final,
+settings frozen once Open.
+
 ## Known limit
 
 With a small board, the result itself can reveal votes: a unanimous outcome

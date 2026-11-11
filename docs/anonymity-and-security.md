@@ -5,11 +5,35 @@ and the result honest. Each one says **where to look in the code or
 infrastructure** so you can read the claim here, then confirm it yourself.
 Please do. Nothing on this page should be taken on trust.
 
-**Status:** the application code is not written yet. Today this page is the
-specification the code must meet, and the "Where to check" entries name the
-places the proof will live. As each piece lands, its entry gets the real file
-and test name, and a measure with no test is a gap worth reporting. The
-infrastructure entries can already be checked in `infra/`.
+**Status:** the database layer exists and is tested; the websites do not yet.
+Entries below that name a table, procedure or grant can be checked today. The
+rest are the specification the sites must meet, and as each piece lands its
+entry gets the real file and test name. A measure with no test is a gap worth
+reporting. The infrastructure entries can be checked in `infra/`.
+
+## Checked today
+
+The tests in `tests/ChisBallot.Tests/CastBallotTests.cs` run against a real
+SQL Server, using the same migration and the same two database users as the
+sites.
+
+| Measure | Code | Test |
+|---|---|---|
+| A code works once | `dbo.CastBallot` in `src/ChisBallot.Data/Migrations/001_schema.sql` | `A_code_works_once` |
+| A code from another election is refused; a closed or draft election refuses codes | `dbo.CastBallot` | `A_code_from_another_election_is_refused`, `A_code_is_refused_unless_the_election_is_open` |
+| Consuming the code and inserting the ballot are one transaction; bad choices do not use up the code | `dbo.CastBallot` | `Choices_that_do_not_fit_are_refused_and_the_code_stays_usable` |
+| A ballot row has no code, time, sequence or identity column, and nothing references the code table | `dbo.Ballots`, `BallotSelections`, `BallotWriteIns` | `A_ballot_row_has_nothing_that_links_it_to_a_code_or_to_voting_order` |
+| The voting site cannot read or write ballots, codes or tallies directly; the admin site cannot read ballots or codes | Grants in `002_users_and_grants.sql` | `The_voting_site_cannot_read_or_write_ballots_codes_or_tallies_directly`, `The_admin_site_cannot_read_ballots_or_codes` |
+| Results are unreadable until Closed, unless live results were turned on; live results are counts only | `dbo.GetResults` | `Results_are_unreadable_until_the_election_is_closed`, `Live_results_show_counts_while_open_only_when_the_election_turned_them_on` |
+| Turnout is public and ballots never exceed codes used | `dbo.GetTurnout` | `Turnout_is_public_and_ballots_never_exceed_codes_used` |
+| Closed is final and settings freeze once Open | `TR_Elections_Lifecycle` | `A_closed_election_is_final_and_settings_freeze_once_open` |
+| Closing deletes only unused codes | `dbo.CloseElection` | `Closing_deletes_only_the_unused_codes` |
+| Write-ins are limited, normalized and counted by a fixed key | `src/ChisBallot.Data/WriteInName.cs` | `CodeTests`, `A_write_in_counts_against_the_limit_and_is_normalized` |
+| Codes are 80 random bits and only a hash is stored; receipts are random and unrelated | `VotingCode.cs`, `ReceiptCode.cs` | `CodeTests` |
+| Casting logs only the election and the outcome, never a code, hash, choices or address | `BallotCaster.cs` | Read the two `logger.Information` calls |
+
+Not covered yet: the websites, the audit page, demo mode, rate limiting, and
+the tie check.
 
 Report problems as a GitHub issue on this repository.
 

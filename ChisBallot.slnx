@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ChisBallot.Data/ChisBallot.Data.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ChisBallot.Tests/ChisBallot.Tests.csproj" />
+  </Folder>
+</Solution>
