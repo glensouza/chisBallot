@@ -1,0 +1,157 @@
+name: App
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - ".github/workflows/app.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - ".github/workflows/app.yml"
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: app-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: "10.0.x"
+
+jobs:
+  build:
+    name: Build and test
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release
+
+      - name: Publish clients
+        run: |
+          dotnet publish src/ChisBallot.Vote --configuration Release --output publish/vote
+          dotnet publish src/ChisBallot.Admin --configuration Release --output publish/admin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: client-vote
+          path: publish/vote/wwwroot
+          retention-days: 3
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: client-admin
+          path: publish/admin/wwwroot
+          retention-days: 3
+
+  deploy:
+    name: Deploy ${{ matrix.app }}
+    needs: build
+    # Pull requests get a preview environment; main goes to production.
+    # Forks cannot sign in to Azure, so their pull requests stop after tests.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'push' && 'production' || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Public voting site: vote.chisballot.org
+          - app: vote
+            static_web_app: swa-chisballot
+            api: src/ChisBallot.Vote.Api
+          # Admin site: admin.chisballot.org
+          - app: admin
+            static_web_app: swa-chisballot-admin
+            api: src/ChisBallot.Admin.Api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: client-${{ matrix.app }}
+          path: publish/client
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fetch deployment token
+        id: token
+        run: |
+          token="$(az staticwebapp secrets list \
+            --name "${{ matrix.static_web_app }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query properties.apiKey --output tsv)"
+          echo "::add-mask::$token"
+          echo "value=$token" >> "$GITHUB_OUTPUT"
+
+      - uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.token.outputs.value }}
+          repo_token: ${{ github.token }}
+          action: upload
+          app_location: publish/client
+          skip_app_build: true
+          api_location: ${{ matrix.api }}
+
+  close-preview:
+    name: Close preview ${{ matrix.app }}
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Public voting site: vote.chisballot.org
+          - app: vote
+            static_web_app: swa-chisballot
+            api: src/ChisBallot.Vote.Api
+          # Admin site: admin.chisballot.org
+          - app: admin
+            static_web_app: swa-chisballot-admin
+            api: src/ChisBallot.Admin.Api
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fetch deployment token
+        id: token
+        run: |
+          token="$(az staticwebapp secrets list \
+            --name "${{ matrix.static_web_app }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query properties.apiKey --output tsv)"
+          echo "::add-mask::$token"
+          echo "value=$token" >> "$GITHUB_OUTPUT"
+
+      - uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.token.outputs.value }}
+          action: close
+          app_location: publish/client
