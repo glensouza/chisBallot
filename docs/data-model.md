@@ -14,7 +14,9 @@ CREATE TABLE Elections (
     Name        nvarchar(200)    NOT NULL,
     Status      tinyint          NOT NULL,          -- 0 Draft, 1 Open, 2 Closed
     CodesIssued int              NOT NULL DEFAULT 0,-- fixed when the slips are printed
-    ShowLiveResults bit          NOT NULL DEFAULT 0 -- set in Draft, frozen once Open
+    ShowLiveResults bit          NOT NULL DEFAULT 0,-- set in Draft, frozen once Open
+    ShuffleContests bit          NOT NULL DEFAULT 0,-- each voter sees contests in their own random order
+    ShuffleChoices  bit          NOT NULL DEFAULT 0 -- each voter sees choices in their own random order
 );
 
 -- One question on the ballot: an officer race or a yes/no motion.
@@ -79,6 +81,21 @@ CREATE TABLE BallotWriteIns (
 2. Insert the ballot, its selections and its write-ins. For each contest,
    choices plus write-ins must not exceed `MaxSelections`, and write-ins are
    refused unless the contest has `AllowWriteIn`.
+
+**Random order (optional, off by default)**
+
+- With `ShuffleContests` and `ShuffleChoices`, each voter sees the questions
+  and the options in an order of their own. People sitting near each other
+  cannot copy a neighbor's screen, and a ballot does not tell you who
+  voted early or in what rhythm.
+- The shuffle happens in the voter's browser, using the browser's
+  cryptographic random generator. The server never learns the order shown.
+  The order is not stored, not logged and not derived from the voting code,
+  so it can never link a ballot to a slip.
+- `SortOrder` is the fixed order used on every published page. The ballot
+  stores selections without any order, so it is the same however the voter
+  saw the screen.
+- A write-in box, when allowed, always stays last in its contest.
 
 **Results and ties**
 
