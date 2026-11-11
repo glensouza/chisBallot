@@ -1,0 +1,111 @@
+# Anonymity and security: what to check
+
+This page lists every measure chisBallot relies on to keep a vote anonymous
+and the result honest. Each one says **where to look in the code or
+infrastructure** so you can read the claim here, then confirm it yourself.
+Please do. Nothing on this page should be taken on trust.
+
+**Status:** the application code is not written yet. Today this page is the
+specification the code must meet, and the "Where to check" entries name the
+places the proof will live. As each piece lands, its entry gets the real file
+and test name, and a measure with no test is a gap worth reporting. The
+infrastructure entries can already be checked in `infra/`.
+
+Report problems as a GitHub issue on this repository.
+
+## 1. A ballot cannot be linked to a voter
+
+| Measure | Where to check |
+|---|---|
+| The `Ballots` table has no voter, no voting code, no code hash, no timestamp and no sequence number. Its only columns are a random id, the election id and a random receipt code. | `docs/data-model.md`, then the schema migration in the data project |
+| Ballot ids and receipt codes are random, never sequential, so storage order does not reveal voting order. The receipt code is not derived from the voting code. | Ballot creation code; no `NEWSEQUENTIALID`, `IDENTITY` or `DEFAULT SYSDATETIME` on any ballot table |
+| `VotingCodes` and `Ballots` share no column except the election id. | Schema migration |
+| Casting a ballot is one transaction: mark the code used, insert the ballot. Nothing records which code produced which ballot. | The cast-ballot code and its tests |
+| If an election randomizes question and option order, the shuffle runs in the voter's browser. The order shown is never sent to the server, stored or logged, and is not derived from the voting code. Ballots store selections with no order. | The ballot page script (shuffle uses `crypto.getRandomValues`); the cast request body carries no order; schema has no order column |
+| The voter never signs in and the voting site has no accounts, so there is no identity to attach. | Voting site has no authentication code; `app.yml` and `infra/main.tf` configure no auth for it |
+| Codes are distributed by draw: the chair signs a member off on the roster, the member picks any folded slip from a pile. The roster says who voted; the slips say nothing about who holds them. | Procedure, not code. The chair must keep the roster off the system |
+
+Tests that should prove this (planned): a ballot row contains nothing that
+references a code; a code works once; a code from another election is
+refused.
+
+## 2. Codes are hard to steal or guess
+
+| Measure | Where to check |
+|---|---|
+| Only a hash of each code is stored, so the database alone cannot reproduce a slip. | Code generation and the `VotingCodes.CodeHash` column |
+| Codes come from a cryptographic random number generator and are long enough that guessing is infeasible. The length is stated here once the code exists. | Code generation |
+| A code works once and only in its own election. | The single `UPDATE ... WHERE Used = 0` joined to an Open election in `docs/data-model.md`, and its tests |
+| Wrong guesses are rate-limited, and the ballot page is behind a Cloudflare Turnstile bot check. | Rate-limit code in the vote API; `cloudflare_turnstile_widget` in `infra/dns.tf` |
+| Unused codes are deleted when an election closes. | Close logic in the admin API |
+
+## 3. The code never leaks through the network or the logs
+
+| Measure | Where to check |
+|---|---|
+| The voting link is `vote.chisballot.org/v/#<code>`. The part after `#` is never sent by the browser to any server, so it cannot appear in a web server log, a CDN log or a Referer header. | The router and the page script: the code is read from `location.hash` only |
+| The page sends the code only in the body of a POST to the site's own API. Never in a URL path or query string. | Client and API code; search for any use of the code in a URL |
+| No code, no code hash alongside anything else, and no ballot contents are logged. The cast-ballot request does not log IP addresses. | Serilog configuration and every log call on the cast path |
+| No analytics, tracking scripts or third-party fonts on the ballot page. The only third-party script is Turnstile, which sees the page visit but not the fragment. | The page's HTML and script tags |
+| This repository configures no Application Insights or SQL auditing, so no extra service records requests or queries. | `infra/`: search for `insights`, `audit`, `log_analytics` |
+| Traffic is encrypted: HTTPS on every site, TLS 1.2 minimum on the database. | `infra/main.tf` (`minimum_tls_version`); Pages and Static Web Apps certificates |
+
+## 4. Results are not shown early
+
+| Measure | Where to check |
+|---|---|
+| Turnout (codes used of codes issued) is always public. It reveals how many have voted, not what. | Turnout endpoint |
+| Results are not readable through any API until the election is Closed, unless that election has live results turned on. The setting is chosen while the election is a draft, defaults to off and cannot change once the election is open. | Results endpoint, `ShowLiveResults` in the schema, and the code that freezes it |
+| Even with live results on, only per-choice counts are shown. Receipt codes and the list of ballots wait until Closed. | Results endpoint |
+| The database enforces this too: the voting site's database user can only cast a ballot and read published results. | The migration's `GRANT` and `DENY` statements |
+
+## 5. Anyone can recount
+
+| Measure | Where to check |
+|---|---|
+| At close, the receipt list and every anonymous ballot are published, so anyone can recount, and each voter can find their own receipt code in the list. | Results-publishing code |
+| Audit numbers are published with every result: codes issued, codes used, ballots counted. Used must equal counted. | Audit calculation and its test |
+| A closed election cannot be reopened or changed. | Status transition code and its test |
+| A tie that decides who wins is flagged "revote needed" and never broken by the system or the chair. The revote is a new election. | Tie-check function and its tests |
+| Write-ins are counted by a fixed normalization and cannot be merged or edited by hand. | Write-in counting code and its tests |
+
+## 6. The voting site cannot be used to attack the admin side
+
+| Measure | Where to check |
+|---|---|
+| The voting site contains no admin pages and exposes no admin endpoints. | `ChisBallot.Vote` and `ChisBallot.Vote.Api` contain no admin code |
+| Admin is a separate site, `admin.chisballot.org`, where every route and API call requires a signed-in, invited admin. | Static Web Apps route configuration in `ChisBallot.Admin` |
+| The two sites use two database users with different rights. The admin user cannot read or change the ballots of an open election. | `chisballot_vote` and `chisballot_admin` grants in the migration; comments in `infra/main.tf` |
+| Everything runs from this public repository. Infrastructure is declared in `infra/` and deployed by the workflows in `.github/workflows/`, not set up by hand. | `infra/`, `.github/workflows/` and the Actions run history |
+
+## 7. What this does not protect against
+
+An honest audit needs the weak points too.
+
+- **A small board can reveal itself.** If the outcome is unanimous, everyone
+  knows how each member voted. This is true of paper too.
+- **Live results make timing visible.** If a tally changes right after a
+  known member is signed off, that member's choice is guessable. The chair
+  should turn live results on only for votes where this does not matter.
+- **The database administrator can see everything stored.** The server admin
+  login exists and can read the tables. Neither it nor the two app users
+  record who voted, but whoever holds it can read all data. Keep its use and
+  the Terraform state (where the passwords live) limited to the deploy
+  identity.
+- **Database logs and backups.** Azure keeps backups and a transaction log on
+  its side. In principle they hold when each ballot row was written, and the
+  code-used update and the ballot insert share one transaction. This
+  repository cannot turn that off. Nothing stored in the tables ties a code
+  to a ballot, but that internal log is outside this repository's control.
+- **Write-ins can mark a ballot.** In a contest that allows write-ins, a
+  voter could type something distinctive to prove how they voted, and the
+  full ballot list is public. Names are length- and character-limited and
+  shown only after close, which reduces but does not remove this. Leave
+  write-ins off where a bought or coerced vote is a concern.
+- **The voter's own device.** A shoulder-surfer, a browser extension or a
+  photo of the receipt screen is outside what a website can prevent.
+- **The deployed code matching this repository.** The workflows deploy from
+  `main` and the run history is public, but there is no cryptographic proof
+  that the running site is the code you read.
+- **Paper is still the fallback.** During any pilot the paper result remains
+  official.
