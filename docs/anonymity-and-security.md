@@ -65,6 +65,8 @@ refused.
 | At close, the receipt list and every anonymous ballot are published, so anyone can recount, and each voter can find their own receipt code in the list. | Results-publishing code |
 | Audit numbers are published with every result: codes issued, codes used, ballots counted. Used must equal counted. | Audit calculation and its test |
 | A closed election cannot be reopened or changed. | Status transition code and its test |
+| A tie that decides who wins is flagged "revote needed" and never broken by the system or the chair. The revote is a new election. | Tie-check function and its tests |
+| Write-ins are counted by a fixed normalization and cannot be merged or edited by hand. | Write-in counting code and its tests |
 
 ## 6. The voting site cannot be used to attack the admin side
 
@@ -94,6 +96,11 @@ An honest audit needs the weak points too.
   code-used update and the ballot insert share one transaction. This
   repository cannot turn that off. Nothing stored in the tables ties a code
   to a ballot, but that internal log is outside this repository's control.
+- **Write-ins can mark a ballot.** In a contest that allows write-ins, a
+  voter could type something distinctive to prove how they voted, and the
+  full ballot list is public. Names are length- and character-limited and
+  shown only after close, which reduces but does not remove this. Leave
+  write-ins off where a bought or coerced vote is a concern.
 - **The voter's own device.** A shoulder-surfer, a browser extension or a
   photo of the receipt screen is outside what a website can prevent.
 - **The deployed code matching this repository.** The workflows deploy from
