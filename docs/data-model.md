@@ -16,7 +16,8 @@ CREATE TABLE Elections (
     CodesIssued int              NOT NULL DEFAULT 0,-- fixed when the slips are printed
     ShowLiveResults bit          NOT NULL DEFAULT 0,-- set in Draft, frozen once Open
     ShuffleContests bit          NOT NULL DEFAULT 0,-- each voter sees contests in their own random order
-    ShuffleChoices  bit          NOT NULL DEFAULT 0 -- each voter sees choices in their own random order
+    ShuffleChoices  bit          NOT NULL DEFAULT 0,-- each voter sees choices in their own random order
+    IsDemo          bit          NOT NULL DEFAULT 0 -- practice election; set at creation, never changed
 );
 
 -- One question on the ballot: an officer race or a yes/no motion.
@@ -122,6 +123,15 @@ CREATE TABLE BallotWriteIns (
   So the name is limited to 60 characters of letters, spaces, hyphens,
   apostrophes and periods, and write-in names appear only once the election
   is Closed. Live results, when on, show write-ins as a single combined count.
+
+**Demo elections** (`IsDemo`, see `docs/demo.md`)
+
+- Set when an admin creates the election and immutable afterwards.
+- The only election type where the public site can ask for a code. That goes
+  through one database procedure that refuses real elections, so a real
+  election has no code-issuing endpoint.
+- Admin can reset a demo (delete its ballots and codes); reset refuses real
+  elections.
 
 **Election lifecycle**
 

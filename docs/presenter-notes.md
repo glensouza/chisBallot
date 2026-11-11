@@ -15,9 +15,12 @@ board and the teachers' union.
   given per slide.
 - **Bring:** a few sample slips, a phone, and a stack of paper ballots. Being
   able to hold up a slip does more than any slide.
-- **If you can, run a live demo** after slide 3 with a made-up question
-  ("Best lunch day?"). Three volunteers are enough. If the demo fails, say
-  "and this is exactly when we switch to paper" and carry on.
+- **Run the live demo** after slide 3. The full script, including what to
+  set up beforehand and what to say if it fails, is in `docs/demo.md`. The
+  whole room can take part: everyone scans a QR code and votes on a practice
+  question. Reset the demo and test it on your phone before people arrive.
+  If the demo fails, say "and this is exactly when we switch to paper" and
+  carry on.
 - **Tone with the union:** agree early and often that paper works. The case
   is that this keeps what paper does well and adds a way for each voter to
   check the count.
