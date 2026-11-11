@@ -426,3 +426,12 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+tfplan
+plan.txt
+crash.log
