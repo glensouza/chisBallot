@@ -36,17 +36,24 @@ fi
 
 add_credential() {
   local name="$1" subject="$2"
-  if ! az ad app federated-credential list --id "$CLIENT_ID" --query "[?name=='$name']" -o tsv | grep -q .; then
-    az ad app federated-credential create --id "$CLIENT_ID" --parameters "{
+  local body="{
       \"name\": \"$name\",
       \"issuer\": \"https://token.actions.githubusercontent.com\",
       \"subject\": \"$subject\",
       \"audiences\": [\"api://AzureADTokenExchange\"]
-    }" --output none
+    }"
+  if az ad app federated-credential list --id "$CLIENT_ID" --query "[?name=='$name']" -o tsv | grep -q .; then
+    az ad app federated-credential update --id "$CLIENT_ID" --federated-credential-id "$name" --parameters "$body" --output none
+  else
+    az ad app federated-credential create --id "$CLIENT_ID" --parameters "$body" --output none
   fi
 }
-add_credential "pull-request" "repo:${REPO}:pull_request"
-add_credential "production" "repo:${REPO}:environment:production"
+# GitHub may send the repository as an immutable id-based subject
+# (repo:owner@id/name@id) instead of repo:owner/name; use whatever it sends.
+SUB_PREFIX="$(gh api "repos/${REPO}/actions/oidc/customization/sub" --jq '.sub_claim_prefix // empty' 2>/dev/null || true)"
+SUB_PREFIX="${SUB_PREFIX:-repo:${REPO}}"
+add_credential "pull-request" "${SUB_PREFIX}:pull_request"
+add_credential "production" "${SUB_PREFIX}:environment:production"
 
 echo "Role assignments (scoped to the resource group only)"
 RG_ID="$(az group show --name "$RESOURCE_GROUP" --query id -o tsv)"
