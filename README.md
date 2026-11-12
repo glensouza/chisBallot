@@ -63,8 +63,12 @@ The admin site can create a vote (questions, options, seats, write-ins,
 random order, running totals), open it, close it, and show the results, with
 ties flagged for a revote.
 
-Not built yet: making and printing the slips, the audit page, demo mode, rate
-limiting of code guesses and the Cloudflare bot check, and a revote shortcut.
+It also makes the slips: the board chair says how many, and the admin site
+shows a printable sheet of QR slips once. Only a scrambled (hashed) form of
+each code is stored, so a lost sheet cannot be reprinted.
+
+Not built yet: the audit page, demo mode, rate limiting of code guesses and
+the Cloudflare bot check, and a revote shortcut.
 
 ## Run it on your computer
 

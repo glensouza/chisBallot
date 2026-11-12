@@ -102,3 +102,56 @@ a.chis-button {
 .chis-card {
     margin: 1rem 0;
 }
+
+.count-input {
+    width: 5rem;
+    font: inherit;
+    padding: 0.4rem;
+}
+
+.slips {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    margin: 1rem 0;
+}
+
+.slip {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    border: 1px dashed var(--chis-gray-dark);
+    padding: 0.6rem;
+    break-inside: avoid;
+}
+
+.slip-qr svg {
+    width: 7rem;
+    height: 7rem;
+    display: block;
+}
+
+.slip-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+}
+
+.slip-text code {
+    font-size: 0.8rem;
+    word-break: break-all;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.slip-note {
+    color: var(--chis-gray-dark);
+}
+
+@media print {
+    .no-print,
+    .chis-header {
+        display: none !important;
+    }
+}

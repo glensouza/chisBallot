@@ -76,6 +76,43 @@ public sealed class AdminFunctions(ElectionReader elections, ElectionAdmin admin
         return view is null ? new NotFoundResult() : new OkObjectResult(view);
     }
 
+    [Function("IssueSlips")]
+    public async Task<IActionResult> IssueSlips(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "elections/{id:guid}/slips")] HttpRequest request,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!IsAdmin(request))
+        {
+            return Forbidden();
+        }
+
+        IssueSlipsRequest? body;
+        try
+        {
+            body = await request.ReadFromJsonAsync<IssueSlipsRequest>(cancellationToken);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            body = null;
+        }
+
+        if (body is null || body.Count < 1 || body.Count > SlipLimits.Max)
+        {
+            return new BadRequestObjectResult(new IssueSlipsResponse(null, $"Ask for between 1 and {SlipLimits.Max} slips."));
+        }
+
+        IReadOnlyList<string>? codes = await admin.IssueSlipsAsync(id, body.Count, cancellationToken);
+        if (codes is null)
+        {
+            return new ConflictObjectResult(new IssueSlipsResponse(null, "Slips can be made once, for a draft that has none."));
+        }
+
+        // The codes are shown once; nothing along the way may keep a copy.
+        request.HttpContext.Response.Headers.CacheControl = "no-store";
+        return new OkObjectResult(new IssueSlipsResponse(codes, null));
+    }
+
     [Function("OpenElection")]
     public async Task<IActionResult> OpenElection(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "elections/{id:guid}/open")] HttpRequest request,

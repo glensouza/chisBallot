@@ -1,9 +1,11 @@
 @page "/elections/{Id:guid}"
 @inject HttpClient Http
+@inject IConfiguration Configuration
+@inject IJSRuntime Js
 
 <PageTitle>@(this.view?.Election.Name ?? "Vote")</PageTitle>
 
-<p><a href="/">&larr; All votes</a></p>
+<p class="no-print"><a href="/">&larr; All votes</a></p>
 
 @if (this.error is not null && this.view is null)
 {
@@ -17,6 +19,21 @@ else
 {
     ElectionView election = this.view.Election;
 
+    @if (this.slips is not null)
+    {
+        <div class="no-print">
+            <h1>Slips for @election.Name</h1>
+            <p class="warn">
+                <strong>These are shown once.</strong> Only a scrambled form of each code is stored, so if you leave this page
+                the codes cannot be shown again. Print them now.
+            </p>
+            <button class="chis-button" @onclick="this.PrintAsync">Print the slips</button>
+            <button class="link-button" @onclick="() => this.slips = null">I have printed them, hide</button>
+        </div>
+        <SlipSheet Codes="this.slips" Slug="@election.Slug" Name="@election.Name" VoteSiteUrl="@this.VoteSiteUrl" />
+    }
+
+    <div class="no-print">
     <h1>@election.Name</h1>
     <p>
         <span class="badge">@StatusText(election.Status)</span>
@@ -57,7 +74,9 @@ else
             <h2>Open the vote</h2>
             @if (this.view.Turnout.CodesIssued == 0)
             {
-                <p>Slips have not been made yet. A vote can open only after its slips exist.</p>
+                <p>A vote can open only after its slips exist. Slips can be made once, so count your voters first.</p>
+                <label>How many slips? <input type="number" min="1" max="@SlipLimits.Max" @bind="this.slipCount" class="count-input" /></label>
+                <button class="chis-button" disabled="@this.busy" @onclick="this.MakeSlipsAsync">Make slips</button>
             }
             else
             {
@@ -118,6 +137,7 @@ else
             </table>
         }
     }
+    </div>
 }
 
 @code {
@@ -128,6 +148,51 @@ else
     private string? error;
     private bool busy;
     private bool confirmClose;
+    private int slipCount = 40;
+    private IReadOnlyList<string>? slips;
+
+    private string VoteSiteUrl => this.Configuration["VoteSiteUrl"] ?? "https://vote.chisballot.org";
+
+    private async Task PrintAsync()
+    {
+        try
+        {
+            await this.Js.InvokeVoidAsync("print");
+        }
+        catch (JSException)
+        {
+            this.error = "The browser would not open the print dialog. Use the browser's own print command.";
+        }
+    }
+
+    private async Task MakeSlipsAsync()
+    {
+        this.busy = true;
+        this.error = null;
+        try
+        {
+            using HttpResponseMessage response = await this.Http.PostAsJsonAsync($"api/elections/{this.Id}/slips", new IssueSlipsRequest(this.slipCount));
+            IssueSlipsResponse? result = await response.Content.ReadFromJsonAsync<IssueSlipsResponse>();
+            if (response.IsSuccessStatusCode && result?.Codes is not null)
+            {
+                this.slips = result.Codes;
+            }
+            else
+            {
+                this.error = result?.Error ?? "The slips could not be made.";
+            }
+
+            await this.LoadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            this.error = "Could not reach the admin service.";
+        }
+        finally
+        {
+            this.busy = false;
+        }
+    }
 
     protected override async Task OnInitializedAsync() => await this.LoadAsync();
 
