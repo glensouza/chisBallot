@@ -41,6 +41,14 @@ sites.
 | A tie that decides who wins is flagged and never broken; clear winners keep their seats | `src/ChisBallot.Contracts/ResultsCalculator.cs` | `ResultsCalculatorTests` (ten cases, including a level yes/no vote and a vote nobody voted in) |
 | The admin site shows results only after the database allows them, and the admin database user still cannot read ballots | `ResultsReader`, `dbo.GetResults` | `Results_come_back_only_after_close_and_follow_the_tie_rule`, `The_admin_site_cannot_read_ballots_or_codes` |
 
+### Making the slips
+
+| Measure | Code | Test |
+|---|---|---|
+| Codes are random (80 bits) and only their SHA-256 hash is stored; the plain codes are returned once and never logged | `ElectionAdmin.IssueSlipsAsync`, `VotingCode` | `Slips_are_made_once_and_only_their_hashes_are_stored` |
+| Slips can be made once, only for a draft, 1 to 500 at a time | `ElectionAdmin.IssueSlipsAsync` | `A_slip_count_out_of_range_is_refused`, `Slips_cannot_be_made_for_an_open_election` |
+| The response carrying the codes is marked `no-store`, and the QR images are drawn in the admin's browser, so no other service sees a code | `AdminFunctions.IssueSlips`, `SlipSheet.razor` | checked by hand with curl (header) |
+
 ### The sites
 
 | Measure | Code | How to check |
@@ -54,7 +62,7 @@ sites.
 | The admin API connects as `chisballot_admin`, the voting API as `chisballot_vote` | `src/ChisBallot.AppHost/AppHost.cs` locally; `infra/main.tf` when deployed | Read both |
 
 Not covered yet: the audit page, demo mode, rate limiting, the bot check, and
-slip generation.
+the revote shortcut.
 
 Report problems as a GitHub issue on this repository.
 

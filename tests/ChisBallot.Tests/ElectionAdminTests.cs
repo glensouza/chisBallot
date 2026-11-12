@@ -125,6 +125,57 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
         Assert.Equal(4, contest.Entries.Sum(e => e.Votes));
     }
 
+    [Fact]
+    public async Task Slips_are_made_once_and_only_their_hashes_are_stored()
+    {
+        CreateElectionResponse created = await Admin().CreateAsync(Request(NewSlug()));
+        Guid id = created.Id!.Value;
+
+        IReadOnlyList<string>? codes = await Admin().IssueSlipsAsync(id, 5);
+
+        Assert.NotNull(codes);
+        Assert.Equal(5, codes.Count);
+        Assert.Equal(5, codes.Distinct().Count());
+        Assert.Equal(5, await CountAsync($"SELECT COUNT(*) FROM dbo.VotingCodes WHERE ElectionId = '{id}'"));
+        Assert.Equal(5, await CountAsync($"SELECT CodesIssued FROM dbo.Elections WHERE Id = '{id}'"));
+        Assert.Null(await Admin().IssueSlipsAsync(id, 5));
+        Assert.Equal(5, await CountAsync($"SELECT COUNT(*) FROM dbo.VotingCodes WHERE ElectionId = '{id}'"));
+    }
+
+    [Fact]
+    public async Task Made_slips_let_the_vote_open_and_each_code_votes_once()
+    {
+        ElectionSeed seed = await ElectionSeed.CreateAsync(database, codeCount: 0, open: false);
+        // The seed marks no slips issued for a zero count, so the draft is ready for slips.
+        IReadOnlyList<string> codes = (await Admin().IssueSlipsAsync(seed.ElectionId, 2))!;
+
+        Assert.True(await Admin().OpenAsync(seed.ElectionId));
+        BallotSelection[] pick = [new BallotSelection(seed.ContestId, seed.ChoiceIds[0])];
+        Assert.Equal(CastStatus.Cast, (await database.Caster.CastAsync(seed.ElectionId, codes[0], pick, [])).Status);
+        Assert.Equal(CastStatus.CodeRefused, (await database.Caster.CastAsync(seed.ElectionId, codes[0], pick, [])).Status);
+        Assert.Equal(CastStatus.Cast, (await database.Caster.CastAsync(seed.ElectionId, codes[1], pick, [])).Status);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-3)]
+    [InlineData(SlipLimits.Max + 1)]
+    public async Task A_slip_count_out_of_range_is_refused(int count)
+    {
+        CreateElectionResponse created = await Admin().CreateAsync(Request(NewSlug()));
+
+        Assert.Null(await Admin().IssueSlipsAsync(created.Id!.Value, count));
+        Assert.Equal(0, await CountAsync($"SELECT CodesIssued FROM dbo.Elections WHERE Id = '{created.Id}'"));
+    }
+
+    [Fact]
+    public async Task Slips_cannot_be_made_for_an_open_election()
+    {
+        ElectionSeed seed = await ElectionSeed.CreateAsync(database, codeCount: 2);
+
+        Assert.Null(await Admin().IssueSlipsAsync(seed.ElectionId, 3));
+    }
+
     private async Task<int> CountAsync(string sql)
     {
         await using SqlConnection connection = new(database.OwnerConnectionString);

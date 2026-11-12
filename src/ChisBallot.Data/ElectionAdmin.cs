@@ -69,6 +69,47 @@ public sealed class ElectionAdmin(string connectionString, ILogger logger)
         return new CreateElectionResponse(electionId, null);
     }
 
+    /// <summary>
+    /// Makes the slips for a draft that has none. Only the hashes are stored; the
+    /// plain codes are returned once and are not logged. Returns null when the
+    /// election is not a draft, already has slips, or the count is out of range.
+    /// </summary>
+    public async Task<IReadOnlyList<string>?> IssueSlipsAsync(Guid electionId, int count, CancellationToken cancellationToken = default)
+    {
+        if (count < 1 || count > SlipLimits.Max)
+        {
+            return null;
+        }
+
+        await using SqlConnection connection = new(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using SqlTransaction transaction = connection.BeginTransaction();
+
+        // Claiming the draft and writing the hashes happen together, so slips can be made only once.
+        await using (SqlCommand claim = new("UPDATE dbo.Elections SET CodesIssued = @n WHERE Id = @id AND Status = 0 AND CodesIssued = 0", connection, transaction))
+        {
+            claim.Parameters.AddWithValue("@n", count);
+            claim.Parameters.AddWithValue("@id", electionId);
+            if (await claim.ExecuteNonQueryAsync(cancellationToken) == 0)
+            {
+                return null;
+            }
+        }
+
+        List<string> codes = [];
+        for (int index = 0; index < count; index++)
+        {
+            string code = VotingCode.Generate();
+            codes.Add(code);
+            await ExecuteAsync(connection, transaction, "INSERT dbo.VotingCodes (ElectionId, CodeHash) VALUES (@e, @h)",
+                ("@e", electionId), ("@h", VotingCode.Hash(code)));
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        logger.Information("Made {SlipCount} slips for election {ElectionId}", count, electionId);
+        return codes;
+    }
+
     /// <summary>Opens a draft that has slips. Returns false when it is not a draft or has no slips yet.</summary>
     public async Task<bool> OpenAsync(Guid electionId, CancellationToken cancellationToken = default)
     {
