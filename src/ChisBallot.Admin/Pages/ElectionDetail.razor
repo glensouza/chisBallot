@@ -1,0 +1,186 @@
+@page "/elections/{Id:guid}"
+@inject HttpClient Http
+
+<PageTitle>@(this.view?.Election.Name ?? "Vote")</PageTitle>
+
+<p><a href="/">&larr; All votes</a></p>
+
+@if (this.error is not null && this.view is null)
+{
+    <p class="error">@this.error</p>
+}
+else if (this.view is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    ElectionView election = this.view.Election;
+
+    <h1>@election.Name</h1>
+    <p>
+        <span class="badge">@StatusText(election.Status)</span>
+        Voters see it at <strong>/e/@election.Slug</strong> on the voting site.
+    </p>
+
+    <div class="chis-card">
+        <h2>Setup</h2>
+        <ul>
+            <li>Random question order: @YesNo(election.ShuffleContests)</li>
+            <li>Random option order: @YesNo(election.ShuffleChoices)</li>
+            <li>Running totals while open: @YesNo(election.ShowLiveResults)</li>
+        </ul>
+        @foreach (ContestView contest in election.Contests)
+        {
+            <p>
+                <strong>@contest.Title</strong>:
+                @contest.Seats @(contest.Seats == 1 ? "seat" : "seats"), up to @contest.MaxSelections
+                @(contest.AllowWriteIn ? ", write-ins allowed" : string.Empty)<br />
+                @string.Join(", ", contest.Choices.Select(c => c.Label))
+            </p>
+        }
+    </div>
+
+    <div class="chis-card">
+        <h2>Turnout</h2>
+        <p>@this.view.Turnout.CodesUsed of @this.view.Turnout.CodesIssued slips used.</p>
+    </div>
+
+    @if (this.error is not null)
+    {
+        <p class="error">@this.error</p>
+    }
+
+    @if (election.Status == 0)
+    {
+        <div class="chis-card">
+            <h2>Open the vote</h2>
+            @if (this.view.Turnout.CodesIssued == 0)
+            {
+                <p>Slips have not been made yet. A vote can open only after its slips exist.</p>
+            }
+            else
+            {
+                <p>Once open, the questions, options and settings cannot change.</p>
+                <button class="chis-button" disabled="@this.busy" @onclick="this.OpenAsync">Open the vote</button>
+            }
+        </div>
+    }
+    else if (election.Status == 1)
+    {
+        <div class="chis-card">
+            <h2>Close the vote</h2>
+            @if (!this.confirmClose)
+            {
+                <button class="chis-button" @onclick="() => this.confirmClose = true">Close the vote…</button>
+            }
+            else
+            {
+                <p><strong>Closing cannot be undone.</strong> Unused slips stop working and are deleted, and the results are published.</p>
+                <button class="chis-button" disabled="@this.busy" @onclick="this.CloseAsync">Yes, close it now</button>
+                <button class="link-button" @onclick="() => this.confirmClose = false">Cancel</button>
+            }
+        </div>
+    }
+
+    @if (this.view.Results is not null)
+    {
+        <h2>@(election.Status == 2 ? "Results" : "Running totals")</h2>
+        @if (election.Status == 1)
+        {
+            <p class="warn">Running totals only. Write-ins are combined until the vote closes, and ties are not judged yet.</p>
+        }
+
+        @foreach (ContestResult contest in this.view.Results)
+        {
+            <h3>@contest.Title</h3>
+            @if (election.Status == 2 && contest.Tie is not null)
+            {
+                <p class="error">
+                    Tie: revote needed. @string.Join(" and ", contest.Tie.TiedLabels) are level for
+                    @contest.Tie.OpenSeats open @(contest.Tie.OpenSeats == 1 ? "seat" : "seats").
+                    The site does not break ties. Run a new vote with only these choices.
+                </p>
+            }
+
+            <table>
+                <thead><tr><th>Choice</th><th>Votes</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (ResultEntry entry in contest.Entries)
+                    {
+                        <tr>
+                            <td>@entry.Label @(entry.IsWriteIn ? "(write-in)" : string.Empty)</td>
+                            <td>@entry.Votes</td>
+                            <td>@(election.Status == 2 && entry.IsWinner ? "Winner" : string.Empty)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private ElectionAdminView? view;
+    private string? error;
+    private bool busy;
+    private bool confirmClose;
+
+    protected override async Task OnInitializedAsync() => await this.LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            this.view = await this.Http.GetFromJsonAsync<ElectionAdminView>($"api/elections/{this.Id}");
+        }
+        catch (HttpRequestException)
+        {
+            this.error = "That vote could not be loaded.";
+        }
+    }
+
+    private Task OpenAsync() => this.ActAsync("open");
+
+    private async Task CloseAsync()
+    {
+        await this.ActAsync("close");
+        this.confirmClose = false;
+    }
+
+    private async Task ActAsync(string action)
+    {
+        this.busy = true;
+        this.error = null;
+        try
+        {
+            using HttpResponseMessage response = await this.Http.PostAsync($"api/elections/{this.Id}/{action}", content: null);
+            if (!response.IsSuccessStatusCode)
+            {
+                this.error = (await response.Content.ReadAsStringAsync()).Trim('"');
+            }
+
+            await this.LoadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            this.error = "Could not reach the admin service.";
+        }
+        finally
+        {
+            this.busy = false;
+        }
+    }
+
+    private static string YesNo(bool value) => value ? "yes" : "no";
+
+    private static string StatusText(int status) => status switch
+    {
+        0 => "Draft",
+        1 => "Open",
+        _ => "Closed",
+    };
+}

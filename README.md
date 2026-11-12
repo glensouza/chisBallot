@@ -59,9 +59,12 @@ name, the slip's code or a time.
 | `docs/` | Design and audit documentation |
 | `.github/workflows/` | Build, test, deploy and infrastructure workflows |
 
-Not built yet: the audit page, results, demo mode, rate limiting of code
-guesses and the Cloudflare bot check, and the admin screens for creating and
-running an election.
+The admin site can create a vote (questions, options, seats, write-ins,
+random order, running totals), open it, close it, and show the results, with
+ties flagged for a revote.
+
+Not built yet: making and printing the slips, the audit page, demo mode, rate
+limiting of code guesses and the Cloudflare bot check, and a revote shortcut.
 
 ## Run it on your computer
 

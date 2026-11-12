@@ -1,0 +1,168 @@
+@page "/new"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>New vote</PageTitle>
+
+<h1>New vote</h1>
+
+<p>You are making a draft. Nothing is public until you generate slips and open it.</p>
+
+<label for="name">Name</label>
+<input id="name" class="text-input" value="@this.name" @oninput="this.OnNameChanged" />
+
+<label for="slug">Address</label>
+<input id="slug" class="text-input" value="@this.slug" @oninput="this.OnSlugChanged" />
+<p class="hint">Voters will see it as vote.chisballot.org/e/@(string.IsNullOrEmpty(this.slug) ? "…" : this.slug)</p>
+
+<fieldset class="options">
+    <legend>Options</legend>
+    <label><input type="checkbox" @bind="this.shuffleContests" /> Show questions in a different random order to each voter</label>
+    <label><input type="checkbox" @bind="this.shuffleChoices" /> Show options in a different random order to each voter</label>
+    <label><input type="checkbox" @bind="this.showLiveResults" /> Show running totals while voting is open</label>
+    @if (this.showLiveResults)
+    {
+        <p class="warn">
+            A total that changes right after a known member votes can point at how that member voted.
+            Leave this off unless that does not matter for this vote. It cannot be changed once the vote is open.
+        </p>
+    }
+</fieldset>
+
+@for (int index = 0; index < this.contests.Count; index++)
+{
+    int position = index;
+    ContestForm contest = this.contests[position];
+    <fieldset class="contest">
+        <legend>Question @(position + 1)</legend>
+
+        <label>Question
+            <input class="text-input" @bind="contest.Title" @bind:event="oninput" />
+        </label>
+
+        <label>Options, one per line
+            <textarea class="text-input" rows="6" @bind="contest.ChoicesText" @bind:event="oninput"></textarea>
+        </label>
+
+        <div class="row">
+            <label>Seats to fill <input type="number" min="1" @bind="contest.Seats" /></label>
+            <label>Most a voter may pick <input type="number" min="1" @bind="contest.MaxSelections" /></label>
+        </div>
+        <p class="hint">For "pick three of ten" use 3 seats and 3 picks. For president or vice president, make a separate question for each.</p>
+
+        <label><input type="checkbox" @bind="contest.AllowWriteIn" /> Let voters write in a name</label>
+        @if (contest.AllowWriteIn)
+        {
+            <p class="warn">A typed name can be used to prove how someone voted. Names are shown only after the vote closes. Leave this off if a bought or coerced vote is a concern.</p>
+        }
+
+        @if (this.contests.Count > 1)
+        {
+            <button type="button" class="link-button" @onclick="() => this.contests.RemoveAt(position)">Remove this question</button>
+        }
+    </fieldset>
+}
+
+<p><button type="button" class="link-button" @onclick="this.AddContest">+ Add a question</button></p>
+
+@if (this.error is not null)
+{
+    <p class="error">@this.error</p>
+}
+
+<button class="chis-button" disabled="@this.busy" @onclick="this.SaveAsync">Save draft</button>
+
+@code {
+    private sealed class ContestForm
+    {
+        public string Title { get; set; } = string.Empty;
+
+        public string ChoicesText { get; set; } = string.Empty;
+
+        public int Seats { get; set; } = 1;
+
+        public int MaxSelections { get; set; } = 1;
+
+        public bool AllowWriteIn { get; set; }
+    }
+
+    private readonly List<ContestForm> contests = [new ContestForm()];
+    private string name = string.Empty;
+    private string slug = string.Empty;
+    private bool slugEdited;
+    private bool shuffleContests;
+    private bool shuffleChoices;
+    private bool showLiveResults;
+    private string? error;
+    private bool busy;
+
+    private void OnNameChanged(ChangeEventArgs e)
+    {
+        this.name = e.Value?.ToString() ?? string.Empty;
+        if (!this.slugEdited)
+        {
+            this.slug = Slugify(this.name);
+        }
+    }
+
+    private void OnSlugChanged(ChangeEventArgs e)
+    {
+        this.slug = e.Value?.ToString() ?? string.Empty;
+        this.slugEdited = true;
+    }
+
+    private void AddContest() => this.contests.Add(new ContestForm());
+
+    private static string Slugify(string text)
+    {
+        char[] letters = [.. text.ToLowerInvariant().Select(c => char.IsAsciiLetterOrDigit(c) ? c : '-')];
+        return string.Join('-', new string(letters).Split('-', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private async Task SaveAsync()
+    {
+        CreateElectionRequest request = new(
+            this.name,
+            this.slug,
+            this.showLiveResults,
+            this.shuffleContests,
+            this.shuffleChoices,
+            [
+                .. this.contests.Select(c => new ContestInput(
+                    c.Title,
+                    c.Seats,
+                    c.MaxSelections,
+                    c.AllowWriteIn,
+                    [.. c.ChoicesText.Split('\n').Select(line => line.Trim()).Where(line => line.Length != 0)])),
+            ]);
+
+        this.error = ElectionRequestValidator.Validate(request);
+        if (this.error is not null)
+        {
+            return;
+        }
+
+        this.busy = true;
+        try
+        {
+            using HttpResponseMessage response = await this.Http.PostAsJsonAsync("api/elections", request);
+            CreateElectionResponse? result = await response.Content.ReadFromJsonAsync<CreateElectionResponse>();
+            if (response.IsSuccessStatusCode && result?.Id is Guid id)
+            {
+                this.Navigation.NavigateTo($"/elections/{id}");
+            }
+            else
+            {
+                this.error = result?.Error ?? "The vote could not be saved.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            this.error = "Could not reach the admin service.";
+        }
+        finally
+        {
+            this.busy = false;
+        }
+    }
+}

@@ -184,6 +184,12 @@ refuses an early peek, whatever the application code does. A trigger on
 `Elections` enforces the lifecycle: Draft to Open to Closed, Closed final,
 settings frozen once Open.
 
+The tie rule is `ResultsCalculator` in `src/ChisBallot.Contracts`. It is a
+pure function of the counts, so the audit page can run the same rules in a
+voter's browser. The admin site shows the result with the tie flagged; the
+revote shortcut (a new election with only the unresolved choices and open
+seats) is not built yet.
+
 ## Known limit
 
 With a small board, the result itself can reveal votes: a unanimous outcome

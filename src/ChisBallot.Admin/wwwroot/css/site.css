@@ -28,3 +28,77 @@ td {
     background: var(--chis-tint);
     font-size: 0.9rem;
 }
+
+.text-input {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    padding: 0.55rem;
+    margin: 0.25rem 0 0.75rem;
+    border: 1px solid var(--chis-silver);
+    border-radius: var(--chis-radius);
+}
+
+label {
+    display: block;
+    font-weight: 600;
+}
+
+label input[type="checkbox"] {
+    margin-right: 0.5rem;
+}
+
+fieldset {
+    border: 1px solid var(--chis-silver);
+    border-radius: var(--chis-radius);
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+}
+
+legend {
+    font-weight: 700;
+    color: var(--chis-blue);
+}
+
+.row {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.row input[type="number"] {
+    width: 5rem;
+    font: inherit;
+    padding: 0.4rem;
+}
+
+.hint {
+    color: var(--chis-gray-dark);
+    font-weight: 400;
+}
+
+.warn {
+    background: #fef3c7;
+    border-radius: var(--chis-radius);
+    padding: 0.6rem 0.8rem;
+    font-weight: 400;
+}
+
+.link-button {
+    background: none;
+    border: 0;
+    color: var(--chis-blue);
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+    padding: 0.4rem 0;
+}
+
+a.chis-button {
+    display: inline-block;
+    text-decoration: none;
+}
+
+.chis-card {
+    margin: 1rem 0;
+}
