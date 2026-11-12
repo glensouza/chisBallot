@@ -15,6 +15,9 @@ Nothing is created by hand in a portal, so anyone can read exactly what exists.
 ## One-time setup
 
 1. Run `./infra/bootstrap/bootstrap.sh` while signed in to `az` and `gh`.
+   On Windows with Git Bash, run `export MSYS_NO_PATHCONV=1` first, or the
+   role assignment fails with `MissingSubscription` (Git Bash rewrites the
+   `/subscriptions/...` scope into a file path). The script is safe to re-run.
 2. Create a Cloudflare API token limited to this zone with
    **Zone / DNS / Edit** and **Account / Turnstile / Edit**, then set the
    variables and secret the script prints.
