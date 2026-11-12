@@ -1,0 +1,60 @@
+@page "/invite"
+@attribute [Authorize(Policy = AdminAuth.PolicyName)]
+@inject AdminInvites Invites
+
+<PageTitle>Invite an admin</PageTitle>
+
+<p><a href="/">&larr; All votes</a></p>
+
+<h1>Invite an admin</h1>
+
+<p>
+    This makes an admin account and gives you a one-time link to pass to the new admin yourself (in person or a
+    message you trust). They choose a password with it, then must add a passkey or an authenticator app before
+    the admin pages open for them. The link works once and lasts three days. There is no email.
+</p>
+
+<label for="email">Their email address</label>
+<input id="email" class="text-input" type="email" @bind="this.email" />
+
+@if (this.error is not null)
+{
+    <p class="error">@this.error</p>
+}
+
+<button class="chis-button" disabled="@this.busy" @onclick="this.InviteAsync">Make the invitation</button>
+
+@if (this.link is not null)
+{
+    <div class="chis-card">
+        <h2>Give them this link</h2>
+        <p class="warn"><strong>Shown once.</strong> Anyone with this link can set the password for that account until it is used.</p>
+        <p><code style="word-break: break-all">@this.link</code></p>
+    </div>
+}
+
+@code {
+    private string email = string.Empty;
+    private string? link;
+    private string? error;
+    private bool busy;
+
+    private async Task InviteAsync()
+    {
+        this.busy = true;
+        this.error = null;
+        this.link = null;
+        try
+        {
+            this.link = await this.Invites.InviteAsync(this.email);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            this.error = exception.Message;
+        }
+        finally
+        {
+            this.busy = false;
+        }
+    }
+}

@@ -435,3 +435,9 @@ FodyWeavers.xsd
 tfplan
 plan.txt
 crash.log
+
+# Local admin accounts and dev data
+.local/
+*.db
+*.db-shm
+*.db-wal

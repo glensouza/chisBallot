@@ -6,21 +6,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="referrer" content="no-referrer" />
     <base href="/" />
-    <link rel="stylesheet" href="css/app.css" />
-    <link rel="stylesheet" href="css/brand.css" />
-    <link rel="stylesheet" href="css/site.css" />
-    <HeadOutlet @rendermode="InteractiveServer" />
+    @if (!this.Interactive)
+    {
+        <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
+    }
+    <link rel="stylesheet" href="@Assets["css/app.css"]" />
+    <link rel="stylesheet" href="@Assets["css/brand.css"]" />
+    <link rel="stylesheet" href="@Assets["css/site.css"]" />
+    <ImportMap />
+    <HeadOutlet @rendermode="this.PageRenderMode" />
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="this.PageRenderMode" />
 
     <div id="blazor-error-ui">
         Something went wrong.
         <a href="." class="reload">Reload</a>
         <span class="dismiss">🗙</span>
     </div>
-    <script src="_framework/blazor.web.js"></script>
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["Account/Shared/PasskeySubmit.razor.js"]" type="module"></script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    // The sign-in and account pages are plain server-rendered pages (they set cookies); everything else is interactive.
+    private bool Interactive => this.HttpContext.AcceptsInteractiveRouting();
+
+    private IComponentRenderMode? PageRenderMode => this.Interactive ? InteractiveServer : null;
+}
