@@ -1,19 +1,18 @@
-using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 using Serilog;
 
 namespace ChisBallot.Data;
 
 /// <summary>
-/// Casts a ballot through the dbo.CastBallot procedure, which consumes the
-/// code and inserts the ballot in one transaction. Never logs the code, a
-/// hash of it, the choices, or anything about who is calling.
+/// Casts a ballot through ballot.cast_ballot, which consumes the code and
+/// inserts the ballot in one transaction. Never logs the code, a hash of it,
+/// the choices, or anything about who is calling.
 /// </summary>
 public sealed class BallotCaster(string connectionString, ILogger logger)
 {
     private const int MaxReceiptAttempts = 5;
-    private const int UniqueViolation = 2627;
-    private const int UniqueIndexViolation = 2601;
+    private const string UniqueViolation = "23505";
 
     public async Task<CastOutcome> CastAsync(
         Guid electionId,
@@ -22,9 +21,8 @@ public sealed class BallotCaster(string connectionString, ILogger logger)
         IReadOnlyList<WriteInEntry> writeIns,
         CancellationToken cancellationToken = default)
     {
-        DataTable selectionTable = new();
-        selectionTable.Columns.Add("ContestId", typeof(Guid));
-        selectionTable.Columns.Add("ChoiceId", typeof(Guid));
+        List<Guid> selectionContests = [];
+        List<Guid> selectionChoices = [];
         HashSet<BallotSelection> seenSelections = [];
         foreach (BallotSelection selection in selections)
         {
@@ -33,13 +31,13 @@ public sealed class BallotCaster(string connectionString, ILogger logger)
                 return this.Refused(electionId);
             }
 
-            selectionTable.Rows.Add(selection.ContestId, selection.ChoiceId);
+            selectionContests.Add(selection.ContestId);
+            selectionChoices.Add(selection.ChoiceId);
         }
 
-        DataTable writeInTable = new();
-        writeInTable.Columns.Add("ContestId", typeof(Guid));
-        writeInTable.Columns.Add("Name", typeof(string));
-        writeInTable.Columns.Add("NameKey", typeof(string));
+        List<Guid> writeInContests = [];
+        List<string> writeInNames = [];
+        List<string> writeInKeys = [];
         HashSet<(Guid, string)> seenWriteIns = [];
         foreach (WriteInEntry writeIn in writeIns)
         {
@@ -48,7 +46,9 @@ public sealed class BallotCaster(string connectionString, ILogger logger)
                 return this.Refused(electionId);
             }
 
-            writeInTable.Rows.Add(writeIn.ContestId, display, key);
+            writeInContests.Add(writeIn.ContestId);
+            writeInNames.Add(display);
+            writeInKeys.Add(key);
         }
 
         byte[] codeHash = VotingCode.Hash(code);
@@ -59,20 +59,19 @@ public sealed class BallotCaster(string connectionString, ILogger logger)
 
             try
             {
-                await using SqlConnection connection = new(connectionString);
+                await using NpgsqlConnection connection = new(connectionString);
                 await connection.OpenAsync(cancellationToken);
-                await using SqlCommand command = new("dbo.CastBallot", connection) { CommandType = CommandType.StoredProcedure };
-                command.Parameters.Add(new SqlParameter("@ElectionId", SqlDbType.UniqueIdentifier) { Value = electionId });
-                command.Parameters.Add(new SqlParameter("@CodeHash", SqlDbType.Binary, 32) { Value = codeHash });
-                command.Parameters.Add(new SqlParameter("@ReceiptCode", SqlDbType.Char, 11) { Value = receipt });
-                command.Parameters.Add(new SqlParameter("@Selections", SqlDbType.Structured) { TypeName = "dbo.SelectionList", Value = selectionTable });
-                command.Parameters.Add(new SqlParameter("@WriteIns", SqlDbType.Structured) { TypeName = "dbo.WriteInList", Value = writeInTable });
-                SqlParameter result = new("@Result", SqlDbType.Int) { Direction = ParameterDirection.Output };
-                command.Parameters.Add(result);
+                await using NpgsqlCommand command = new("SELECT ballot.cast_ballot(@election, @hash, @receipt, @selContests, @selChoices, @wiContests, @wiNames, @wiKeys)", connection);
+                command.Parameters.Add(new NpgsqlParameter("election", NpgsqlDbType.Uuid) { Value = electionId });
+                command.Parameters.Add(new NpgsqlParameter("hash", NpgsqlDbType.Bytea) { Value = codeHash });
+                command.Parameters.Add(new NpgsqlParameter("receipt", NpgsqlDbType.Text) { Value = receipt });
+                command.Parameters.Add(new NpgsqlParameter("selContests", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = selectionContests.ToArray() });
+                command.Parameters.Add(new NpgsqlParameter("selChoices", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = selectionChoices.ToArray() });
+                command.Parameters.Add(new NpgsqlParameter("wiContests", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = writeInContests.ToArray() });
+                command.Parameters.Add(new NpgsqlParameter("wiNames", NpgsqlDbType.Array | NpgsqlDbType.Text) { Value = writeInNames.ToArray() });
+                command.Parameters.Add(new NpgsqlParameter("wiKeys", NpgsqlDbType.Array | NpgsqlDbType.Text) { Value = writeInKeys.ToArray() });
 
-                await command.ExecuteNonQueryAsync(cancellationToken);
-
-                CastStatus status = (int)result.Value switch
+                CastStatus status = (int)(await command.ExecuteScalarAsync(cancellationToken))! switch
                 {
                     0 => CastStatus.Cast,
                     1 => CastStatus.CodeRefused,
@@ -82,7 +81,7 @@ public sealed class BallotCaster(string connectionString, ILogger logger)
                 logger.Information("Ballot cast attempt for election {ElectionId} finished with {Status}", electionId, status);
                 return new CastOutcome(status, status == CastStatus.Cast ? receipt : null);
             }
-            catch (SqlException exception) when (exception.Number is UniqueViolation or UniqueIndexViolation)
+            catch (PostgresException exception) when (exception.SqlState == UniqueViolation)
             {
                 // The receipt code already exists in this election. The
                 // transaction rolled back, so the code is still unused: try

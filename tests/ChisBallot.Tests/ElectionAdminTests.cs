@@ -1,6 +1,6 @@
 using ChisBallot.Contracts;
 using ChisBallot.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Serilog;
 
 namespace ChisBallot.Tests;
@@ -64,11 +64,11 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
     {
         string slug = NewSlug();
         await Admin().CreateAsync(Request(slug));
-        int before = await CountAsync("SELECT COUNT(*) FROM dbo.Contests");
+        int before = await CountAsync("SELECT COUNT(*) FROM ballot.contests");
 
         await Admin().CreateAsync(Request(slug));
 
-        Assert.Equal(before, await CountAsync("SELECT COUNT(*) FROM dbo.Contests"));
+        Assert.Equal(before, await CountAsync("SELECT COUNT(*) FROM ballot.contests"));
     }
 
     [Fact]
@@ -136,10 +136,10 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
         Assert.NotNull(codes);
         Assert.Equal(5, codes.Count);
         Assert.Equal(5, codes.Distinct().Count());
-        Assert.Equal(5, await CountAsync($"SELECT COUNT(*) FROM dbo.VotingCodes WHERE ElectionId = '{id}'"));
-        Assert.Equal(5, await CountAsync($"SELECT CodesIssued FROM dbo.Elections WHERE Id = '{id}'"));
+        Assert.Equal(5, await CountAsync($"SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = '{id}'"));
+        Assert.Equal(5, await CountAsync($"SELECT codes_issued FROM ballot.elections WHERE id = '{id}'"));
         Assert.Null(await Admin().IssueSlipsAsync(id, 5));
-        Assert.Equal(5, await CountAsync($"SELECT COUNT(*) FROM dbo.VotingCodes WHERE ElectionId = '{id}'"));
+        Assert.Equal(5, await CountAsync($"SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = '{id}'"));
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
         CreateElectionResponse created = await Admin().CreateAsync(Request(NewSlug()));
 
         Assert.Null(await Admin().IssueSlipsAsync(created.Id!.Value, count));
-        Assert.Equal(0, await CountAsync($"SELECT CodesIssued FROM dbo.Elections WHERE Id = '{created.Id}'"));
+        Assert.Equal(0, await CountAsync($"SELECT codes_issued FROM ballot.elections WHERE id = '{created.Id}'"));
     }
 
     [Fact]
@@ -178,9 +178,9 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
 
     private async Task<int> CountAsync(string sql)
     {
-        await using SqlConnection connection = new(database.OwnerConnectionString);
+        await using NpgsqlConnection connection = new(database.OwnerConnectionString);
         await connection.OpenAsync();
-        await using SqlCommand command = new(sql, connection);
-        return (int)(await command.ExecuteScalarAsync())!;
+        await using NpgsqlCommand command = new(sql, connection);
+        return Convert.ToInt32(await command.ExecuteScalarAsync());
     }
 }

@@ -2,8 +2,8 @@
 //
 //   dotnet run --project src/ChisBallot.AppHost
 //
-// It starts SQL Server in a container, applies the database scripts, creates
-// the two database users and a practice election, then starts the voting API
+// It starts PostgreSQL in a container, applies the database scripts, creates
+// the two database roles and a practice election, then starts the voting API
 // and site and the admin API and site. Needs Docker and the Azure Functions
 // Core Tools (`func`).
 //
@@ -20,15 +20,8 @@ const int AdminApiPort = 7072;
 
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
 
-IResourceBuilder<SqlServerServerResource> sql = builder.AddSqlServer("sql");
-// Contained, so the two database users can have passwords of their own, as they
-// do in Azure SQL.
-IResourceBuilder<SqlServerDatabaseResource> database = sql.AddDatabase("chisballot")
-    .WithCreationScript("""
-        EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
-        EXEC sp_configure 'contained database authentication', 1; RECONFIGURE;
-        CREATE DATABASE [chisballot] CONTAINMENT = PARTIAL;
-        """);
+IResourceBuilder<PostgresServerResource> sql = builder.AddPostgres("sql");
+IResourceBuilder<PostgresDatabaseResource> database = sql.AddDatabase("chisballot");
 
 IResourceBuilder<ProjectResource> vote = builder.AddProject<Projects.ChisBallot_Vote>("vote")
     .WithExternalHttpEndpoints();
@@ -44,17 +37,17 @@ IResourceBuilder<ProjectResource> migrator = builder.AddProject<Projects.ChisBal
 ReferenceExpression ConnectionFor(string user, string password)
 {
     return ReferenceExpression.Create(
-        $"Server=127.0.0.1,{sql.Resource.PrimaryEndpoint.Property(EndpointProperty.Port)};Database=chisballot;User ID={user};Password={password};TrustServerCertificate=true;Encrypt=false");
+        $"Host=127.0.0.1;Port={sql.Resource.PrimaryEndpoint.Property(EndpointProperty.Port)};Database=chisballot;Username={user};Password={password}");
 }
 
 builder.AddExecutable("vote-api", "func", Path.GetFullPath("../ChisBallot.Vote.Api", builder.AppHostDirectory), "start", "--port", VoteApiPort.ToString())
     .WithHttpEndpoint(port: VoteApiPort, targetPort: VoteApiPort, name: "http", isProxied: false)
-    .WithEnvironment("SqlConnectionString", ConnectionFor("chisballot_vote", VotePassword))
+    .WithEnvironment("DatabaseConnectionString", ConnectionFor("chisballot_vote", VotePassword))
     .WaitForCompletion(migrator);
 
 builder.AddExecutable("admin-api", "func", Path.GetFullPath("../ChisBallot.Admin.Api", builder.AppHostDirectory), "start", "--port", AdminApiPort.ToString())
     .WithHttpEndpoint(port: AdminApiPort, targetPort: AdminApiPort, name: "http", isProxied: false)
-    .WithEnvironment("SqlConnectionString", ConnectionFor("chisballot_admin", AdminPassword))
+    .WithEnvironment("DatabaseConnectionString", ConnectionFor("chisballot_admin", AdminPassword))
     .WithEnvironment("CHISBALLOT_DEV_ADMIN", "1")
     .WaitForCompletion(migrator);
 

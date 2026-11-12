@@ -1,16 +1,16 @@
 using ChisBallot.Contracts;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 
 namespace ChisBallot.Data;
 
 /// <summary>
-/// Reads vote counts through dbo.GetResults, which the database only answers
-/// once the election is Closed (or while Open, if the election turned live
-/// results on). Anything earlier comes back as null.
+/// Reads vote counts through ballot.get_results, which the database only
+/// answers once the election is Closed (or while Open, if the election turned
+/// live results on). Anything earlier comes back as null.
 /// </summary>
 public sealed class ResultsReader(string connectionString)
 {
-    private const int ResultsNotAvailable = 50001;
+    private const string ResultsNotAvailable = "CB001";
 
     public async Task<IReadOnlyList<ContestResult>?> GetAsync(ElectionView election, CancellationToken cancellationToken = default)
     {
@@ -19,11 +19,11 @@ public sealed class ResultsReader(string connectionString)
 
         try
         {
-            await using SqlConnection connection = new(connectionString);
+            await using NpgsqlConnection connection = new(connectionString);
             await connection.OpenAsync(cancellationToken);
-            await using SqlCommand command = new("dbo.GetResults", connection) { CommandType = System.Data.CommandType.StoredProcedure };
-            command.Parameters.AddWithValue("@ElectionId", election.Id);
-            await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+            await using NpgsqlCommand command = new("SELECT contest_id, choice_id, write_in, votes FROM ballot.get_results(@e)", connection);
+            command.Parameters.AddWithValue("e", election.Id);
+            await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
 
             while (await reader.ReadAsync(cancellationToken))
             {
@@ -45,7 +45,7 @@ public sealed class ResultsReader(string connectionString)
                 list.Add((label, votes, !isChoice));
             }
         }
-        catch (SqlException exception) when (exception.Number == ResultsNotAvailable)
+        catch (PostgresException exception) when (exception.SqlState == ResultsNotAvailable)
         {
             return null;
         }
