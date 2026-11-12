@@ -76,9 +76,10 @@ jobs:
   deploy:
     name: Deploy ${{ matrix.app }}
     needs: build
+    # Deploys wait until the Azure variables exist (see infra/README.md).
     # Pull requests get a preview environment; main goes to production.
     # Forks cannot sign in to Azure, so their pull requests stop after tests.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    if: vars.AZURE_CLIENT_ID != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     environment: ${{ github.event_name == 'push' && 'production' || '' }}
     strategy:
@@ -128,7 +129,7 @@ jobs:
 
   close-preview:
     name: Close preview ${{ matrix.app }}
-    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    if: vars.AZURE_CLIENT_ID != '' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

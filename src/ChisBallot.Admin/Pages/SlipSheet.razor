@@ -9,7 +9,7 @@
             <div class="slip-text">
                 <strong>@this.Name</strong>
                 <span>Scan with a phone camera to vote. Or type this address into a browser:</span>
-                <code>@this.DisplayLink(slipCode)</code>
+                <code>@(this.VoteHost)/v/@(this.Slug)<wbr />#@(slipCode)</code>
                 <span class="slip-note">One use only. Keep it private.</span>
             </div>
         </div>
@@ -28,8 +28,6 @@
 
     [Parameter, EditorRequired]
     public string VoteSiteUrl { get; set; } = string.Empty;
-
-    private string DisplayLink(string slipCode) => $"{this.VoteHost}/v/{this.Slug}#{slipCode}";
 
     private string VoteHost => this.VoteSiteUrl.Replace("https://", string.Empty).Replace("http://", string.Empty).TrimEnd('/');
 
