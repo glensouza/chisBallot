@@ -15,5 +15,7 @@ string connectionString = builder.Configuration["SqlConnectionString"]
 
 builder.Services.AddSingleton(Log.Logger);
 builder.Services.AddSingleton(new ElectionReader(connectionString));
+builder.Services.AddSingleton(new ElectionAdmin(connectionString, Log.Logger));
+builder.Services.AddSingleton(new ResultsReader(connectionString));
 
 builder.Build().Run();

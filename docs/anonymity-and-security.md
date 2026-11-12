@@ -32,6 +32,15 @@ sites.
 | Codes are 80 random bits and only a hash is stored; receipts are random and unrelated | `VotingCode.cs`, `ReceiptCode.cs` | `CodeTests` |
 | Casting logs only the election and the outcome, never a code, hash, choices or address | `BallotCaster.cs` | Read the two `logger.Information` calls |
 
+### Running an election
+
+| Measure | Code | Test |
+|---|---|---|
+| A new election is checked twice, in the admin page and again in the admin API, before it reaches the database | `src/ChisBallot.Contracts/ElectionRequestValidator.cs`, `ElectionAdmin.CreateAsync` | `ElectionRequestValidatorTests`, `A_bad_request_or_a_used_address_is_refused_with_a_reason`, `A_failed_create_leaves_nothing_behind` |
+| A vote cannot open without slips, opens once, and closes once; nothing reopens a closed vote | `ElectionAdmin.OpenAsync`, `CloseAsync`, `TR_Elections_Lifecycle` | `An_election_with_slips_opens_once_and_then_closes_once`, `A_closed_election_is_final_and_settings_freeze_once_open` |
+| A tie that decides who wins is flagged and never broken; clear winners keep their seats | `src/ChisBallot.Contracts/ResultsCalculator.cs` | `ResultsCalculatorTests` (ten cases, including a level yes/no vote and a vote nobody voted in) |
+| The admin site shows results only after the database allows them, and the admin database user still cannot read ballots | `ResultsReader`, `dbo.GetResults` | `Results_come_back_only_after_close_and_follow_the_tie_rule`, `The_admin_site_cannot_read_ballots_or_codes` |
+
 ### The sites
 
 | Measure | Code | How to check |
@@ -45,7 +54,7 @@ sites.
 | The admin API connects as `chisballot_admin`, the voting API as `chisballot_vote` | `src/ChisBallot.AppHost/AppHost.cs` locally; `infra/main.tf` when deployed | Read both |
 
 Not covered yet: the audit page, demo mode, rate limiting, the bot check, and
-the tie check.
+slip generation.
 
 Report problems as a GitHub issue on this repository.
 

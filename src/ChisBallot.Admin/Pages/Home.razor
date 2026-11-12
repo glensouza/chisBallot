@@ -3,7 +3,9 @@
 
 <PageTitle>chisBallot admin</PageTitle>
 
-<h1>Elections</h1>
+<h1>Votes</h1>
+
+<p><a class="chis-button" href="/new">New vote</a></p>
 
 @if (this.error is not null)
 {
@@ -19,7 +21,7 @@ else
 
     @if (this.elections.Count == 0)
     {
-        <div class="chis-card"><p>There are no elections yet.</p></div>
+        <div class="chis-card"><p>There are no votes yet. Make one with "New vote".</p></div>
     }
     else
     {
@@ -31,7 +33,7 @@ else
                 @foreach (ElectionSummary election in this.elections)
                 {
                     <tr>
-                        <td>@election.Name @(election.IsDemo ? "(demo)" : string.Empty)</td>
+                        <td><a href="/elections/@election.Id">@election.Name</a> @(election.IsDemo ? "(demo)" : string.Empty)</td>
                         <td>/e/@election.Slug</td>
                         <td><span class="badge">@StatusText(election.Status)</span></td>
                         <td>@election.CodesIssued</td>
