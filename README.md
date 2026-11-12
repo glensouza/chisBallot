@@ -45,16 +45,15 @@ name, the slip's code or a time.
 
 | Path | Contents |
 |---|---|
-| `src/ChisBallot.Vote` | Voting site (Blazor WebAssembly) |
-| `src/ChisBallot.Vote.Api` | Voting API (Azure Functions): a ballot, turnout, cast a ballot. No admin routes |
-| `src/ChisBallot.Admin` | Admin site (Blazor WebAssembly), every route needs the admin role |
-| `src/ChisBallot.Admin.Api` | Admin API (Azure Functions), checks the admin role on every call |
+| `src/ChisBallot.Vote` | Voting site, the part that runs in the browser (Blazor WebAssembly) |
+| `src/ChisBallot.Vote.Server` | Serves the voting site and its three endpoints: a ballot, turnout, cast a ballot. No admin routes |
+| `src/ChisBallot.Admin` | Admin site (Blazor Server), every page needs the admin role |
 | `src/ChisBallot.Data` | Database schema scripts, the cast-ballot call, code generation |
 | `src/ChisBallot.Contracts` | Shared request and response types, safe for the browser |
 | `src/ChisBallot.Migrator` | Applies the database scripts and creates the two database users |
 | `src/ChisBallot.AppHost` | Runs everything on a laptop with one command |
 | `tests/ChisBallot.Tests` | Tests that run against a real PostgreSQL |
-| `infra/` | Terraform for Azure and Cloudflare |
+| `infra/` | Terraform for Cloudflare DNS and the bot check (the Azure part is being removed) |
 | `site/` | The landing page |
 | `docs/` | Design and audit documentation |
 | `.github/workflows/` | Build, test, deploy and infrastructure workflows |
@@ -72,8 +71,7 @@ the Cloudflare bot check, and a revote shortcut.
 
 ## Run it on your computer
 
-You need the .NET 11 SDK (see `global.json`), the .NET 10 runtime for the two
-APIs, Docker, and the Azure Functions Core Tools (`func`).
+You need the .NET 11 SDK (see `global.json`) and Docker.
 
 ```
 dotnet run --project src/ChisBallot.AppHost
@@ -81,7 +79,7 @@ dotnet run --project src/ChisBallot.AppHost
 
 This starts PostgreSQL in a container, applies the database scripts, creates
 the two database users and a practice election with eight slips, then starts
-both APIs and both sites. The Aspire dashboard (address printed on start)
+both sites (voting on port 5244, admin on 5004). The Aspire dashboard (address printed on start)
 lists each part and its address, and the `migrator` log lists the practice
 slips as links you can open. The admin site signs you in as a local
 developer; that shortcut exists only in debug builds and a CI check keeps it

@@ -1,5 +1,7 @@
 @page "/"
-@inject HttpClient Http
+@attribute [Authorize(Policy = AdminAuth.PolicyName)]
+@inject ElectionReader Elections
+@inject AuthenticationStateProvider Authentication
 
 <PageTitle>chisBallot admin</PageTitle>
 
@@ -17,7 +19,7 @@ else if (this.elections is null)
 }
 else
 {
-    <p>Signed in as <strong>@this.me?.Name</strong>.</p>
+    <p>Signed in as <strong>@this.me</strong>.</p>
 
     @if (this.elections.Count == 0)
     {
@@ -45,7 +47,7 @@ else
 }
 
 @code {
-    private AdminIdentity? me;
+    private string? me;
     private IReadOnlyList<ElectionSummary>? elections;
     private string? error;
 
@@ -53,12 +55,13 @@ else
     {
         try
         {
-            this.me = await this.Http.GetFromJsonAsync<AdminIdentity>("api/me");
-            this.elections = await this.Http.GetFromJsonAsync<List<ElectionSummary>>("api/elections");
+            AuthenticationState state = await this.Authentication.GetAuthenticationStateAsync();
+            this.me = state.User.Identity?.Name;
+            this.elections = await this.Elections.ListAsync();
         }
-        catch (HttpRequestException)
+        catch (Npgsql.NpgsqlException)
         {
-            this.error = "You are not signed in as an admin, or the admin service is not reachable.";
+            this.error = "The database could not be reached.";
         }
     }
 
