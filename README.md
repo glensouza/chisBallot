@@ -65,7 +65,8 @@ running an election.
 
 ## Run it on your computer
 
-You need the .NET 10 SDK, Docker, and the Azure Functions Core Tools (`func`).
+You need the .NET 11 SDK (see `global.json`), the .NET 10 runtime for the two
+APIs, Docker, and the Azure Functions Core Tools (`func`).
 
 ```
 dotnet run --project src/ChisBallot.AppHost
@@ -81,7 +82,7 @@ out of release builds.
 
 ## Run the tests
 
-You need the .NET 10 SDK and Docker. The tests start a SQL Server container,
+You need the .NET 11 SDK and Docker. The tests start a SQL Server container,
 apply the same migration scripts and the same two database users the sites
 use, and exercise the database as those users.
 

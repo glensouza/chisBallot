@@ -23,9 +23,6 @@ concurrency:
   group: app-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-env:
-  DOTNET_VERSION: "10.0.x"
-
 jobs:
   build:
     name: Build and test
@@ -36,7 +33,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          global-json-file: global.json
 
       - name: Restore
         run: dotnet restore
