@@ -1,0 +1,33 @@
+[Unit]
+Description=chisBallot voting site
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=chisballot-vote
+Group=chisballot-vote
+WorkingDirectory=/opt/chisballot/vote/current
+EnvironmentFile=/etc/chisballot/vote.env
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+ExecStart=/usr/bin/dotnet /opt/chisballot/vote/current/ChisBallot.Vote.Server.dll
+Restart=on-failure
+RestartSec=3
+
+# The site reads the database over the loopback address and writes nothing to disk.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+LockPersonality=true
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target

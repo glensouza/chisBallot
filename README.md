@@ -38,7 +38,7 @@ name, the slip's code or a time.
 - [`docs/presenter-notes.md`](docs/presenter-notes.md): notes for presenting
   the proposal
 - [`docs/branding.md`](docs/branding.md): colors and artwork rules
-- [`infra/README.md`](infra/README.md): the infrastructure and how it is
+- [`ops/README.md`](ops/README.md): the server, how it is set up and how it is
   deployed
 
 ## Repository layout
@@ -53,7 +53,7 @@ name, the slip's code or a time.
 | `src/ChisBallot.Migrator` | Applies the database scripts and creates the two database users |
 | `src/ChisBallot.AppHost` | Runs everything on a laptop with one command |
 | `tests/ChisBallot.Tests` | Tests that run against a real PostgreSQL |
-| `infra/` | Terraform for Cloudflare DNS and the bot check (the Azure part is being removed) |
+| `ops/` | The server: service files, deploy script, backup, and the Proxmox host's side of the backup |
 | `site/` | The landing page |
 | `docs/` | Design and audit documentation |
 | `.github/workflows/` | Build, test, deploy and infrastructure workflows |

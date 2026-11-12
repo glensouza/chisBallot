@@ -1,0 +1,21 @@
+# Pull-request previews run other people's code as the runner-pr user. Whatever
+# that user starts (including its rootless Docker containers, whose traffic leaves
+# through the user's own slirp4netns process) may use the internet and the
+# router's DNS, but not reach:
+#   - any private network: no router admin page, no Proxmox, no NAS, nothing else
+#     at home, and
+#   - this machine's own services: the database, the two sites, the tunnel's
+#     metrics, local mail.
+#
+# DNS goes to the router of the container's VLAN (10.10.150.1).
+table inet chisballot_pr {
+	chain out {
+		type filter hook output priority filter; policy accept;
+		meta skuid "runner-pr" ip daddr 10.10.150.1 udp dport 53 accept
+		meta skuid "runner-pr" ip daddr 10.10.150.1 tcp dport 53 accept
+		meta skuid "runner-pr" ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 100.64.0.0/10 } reject
+		meta skuid "runner-pr" ip6 daddr { fc00::/7, fe80::/10 } reject
+		meta skuid "runner-pr" ip daddr 127.0.0.0/8 tcp dport { 22, 25, 2375, 5101, 5102, 5432, 20241 } reject
+		meta skuid "runner-pr" ip6 daddr ::1 tcp dport { 22, 25, 2375, 5101, 5102, 5432, 20241 } reject
+	}
+}

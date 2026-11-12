@@ -1,0 +1,10 @@
+[Unit]
+Description=Encrypted backup of the chisBallot database and admin accounts
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/chisballot-backup
+ProtectSystem=strict
+ReadWritePaths=/var/backups/chisballot
+PrivateTmp=true

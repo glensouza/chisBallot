@@ -1,0 +1,23 @@
+#!/bin/sh
+# Copies the encrypted database dumps that the chisBallot container leaves in
+# its outbox to the Synology NAS. The container has no path to the NAS; this
+# runs on the Proxmox host. It only ever adds files to the NAS (a file already
+# there is never overwritten) and it copies no symlinks or special files, so a
+# compromised container cannot use it to delete or replace anything.
+set -eu
+
+SRC=/srv/chisballot-backup/outbox
+DST=/mnt/pve/synology-backups/chisballot-db
+KEEP_DAYS=90
+
+if ! mountpoint -q /mnt/pve/synology-backups; then
+    echo "NAS is not mounted; nothing copied" >&2
+    exit 1
+fi
+
+install -d -m 755 "$DST"
+rsync -rt --no-links --no-devices --no-specials --ignore-existing \
+    --include='*.age' --include='*.sha256' --exclude='*' "$SRC"/ "$DST"/
+
+# Old copies on the NAS are removed here, by the host, not by the container.
+find "$DST" -maxdepth 1 -type f \( -name '*.age' -o -name '*.sha256' \) -mtime +"$KEEP_DAYS" -delete

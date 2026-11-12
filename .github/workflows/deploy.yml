@@ -1,0 +1,44 @@
+name: Deploy
+
+# Builds on the production runner (the server itself) and puts the result into
+# service with the deploy script in ops/lxc. The job waits for a reviewer's
+# approval in the "production" environment, and only main can deploy to it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "ops/**"
+      - "global.json"
+      - "Directory.Build.props"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to the server
+    if: github.repository == 'glensouza/chisBallot'
+    runs-on: [self-hosted, prod]
+    environment: production
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          rm -rf "$RUNNER_TEMP/release"
+          dotnet publish src/ChisBallot.Vote.Server --configuration Release --output "$RUNNER_TEMP/release/vote"
+          dotnet publish src/ChisBallot.Admin --configuration Release --output "$RUNNER_TEMP/release/admin"
+          dotnet publish src/ChisBallot.Migrator --configuration Release --output "$RUNNER_TEMP/release/migrator"
+
+      - name: Deploy
+        run: sudo /usr/local/sbin/chisballot-deploy "$RUNNER_TEMP/release"

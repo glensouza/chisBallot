@@ -155,7 +155,7 @@ CREATE TABLE ballot.ballot_write_ins (
   everything else only at Closed. The published ballot list is ordered by
   receipt code, never by storage order.
 - Near real time means the page polls the API every few seconds and the API
-  caches its answer briefly. Static Web Apps has no push channel.
+  caches its answer briefly. The voting site has no push channel, so the page asks again every few seconds.
 - Closing an election deletes its unused codes after recording how many
   there were.
 - A closed election cannot be reopened. Run a new one instead.

@@ -1,0 +1,51 @@
+#!/bin/sh
+# Nightly encrypted backup of everything chisBallot keeps: the ballot database
+# and the admin accounts file.
+#
+# Both are encrypted to a public key (age) before they touch disk, so the files
+# in the outbox, on the Proxmox host and on the NAS are unreadable without the
+# matching private key, which is not kept on this server. The host copies the
+# outbox to the NAS; this machine has no way to reach the NAS.
+#
+# Restore the database:
+#   age -d -i chisballot-backup.key chisballot-<time>.sql.age | pg_restore --no-owner -d <empty database>
+# Restore the admin accounts:
+#   age -d -i chisballot-backup.key chisballot-identity-<time>.db.age > identity.db
+set -eu
+
+RECIPIENT=/etc/chisballot/backup-recipient.txt
+OUT=/var/backups/chisballot
+IDENTITY_DB=/var/lib/chisballot-admin/identity.db
+KEEP_LOCAL_DAYS=7
+
+if [ ! -s "$RECIPIENT" ]; then
+    echo "No age public key at $RECIPIENT; refusing to write an unencrypted backup" >&2
+    exit 1
+fi
+
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+
+# The ballot database.
+DB_PART="$OUT/.chisballot-$STAMP.part"
+DB_FINAL="$OUT/chisballot-$STAMP.sql.age"
+runuser -u postgres -- pg_dump --format=custom --no-owner chisballot | age --recipients-file "$RECIPIENT" > "$DB_PART"
+mv "$DB_PART" "$DB_FINAL"
+(cd "$OUT" && sha256sum "chisballot-$STAMP.sql.age" > "chisballot-$STAMP.sql.age.sha256")
+echo "Wrote $DB_FINAL"
+
+# The admin accounts file: a consistent copy taken by SQLite itself, not a raw file copy.
+if [ -f "$IDENTITY_DB" ]; then
+    TMP=$(mktemp -d)
+    chown chisballot-admin "$TMP"
+    runuser -u chisballot-admin -- sqlite3 "$IDENTITY_DB" ".backup '$TMP/identity.db'"
+    ID_PART="$OUT/.chisballot-identity-$STAMP.part"
+    ID_FINAL="$OUT/chisballot-identity-$STAMP.db.age"
+    age --recipients-file "$RECIPIENT" < "$TMP/identity.db" > "$ID_PART"
+    rm -rf "$TMP"
+    mv "$ID_PART" "$ID_FINAL"
+    (cd "$OUT" && sha256sum "chisballot-identity-$STAMP.db.age" > "chisballot-identity-$STAMP.db.age.sha256")
+    echo "Wrote $ID_FINAL"
+fi
+
+# Local copies are only a short buffer; the NAS keeps the history.
+find "$OUT" -maxdepth 1 -type f -name 'chisballot-*' -mtime +"$KEEP_LOCAL_DAYS" -delete

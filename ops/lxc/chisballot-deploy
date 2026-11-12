@@ -1,0 +1,95 @@
+#!/bin/sh
+# Puts a freshly built release into service. Run as root, and only through the
+# one sudo rule the production runner has (see setup.sh):
+#
+#   sudo /usr/local/sbin/chisballot-deploy <folder containing vote/, admin/, migrator/>
+#
+# The folder must be inside the production runner's work area. Order of events:
+# copy the build to a new release folder, apply database changes, switch the
+# "current" links, restart, check the sites answer, and go back to the previous
+# release if they do not. Old releases are kept (three) so a rollback is a link.
+set -eu
+
+ALLOWED=/home/runner-prod/actions-runner/_work/
+BASE=/opt/chisballot
+KEEP=3
+
+STAGE=${1:?usage: chisballot-deploy <build folder>}
+REAL=$(realpath -e -- "$STAGE")
+case "$REAL/" in
+    "$ALLOWED"*) ;;
+    *) echo "refusing: $REAL is not inside the runner work area" >&2; exit 2 ;;
+esac
+
+for app in vote admin migrator; do
+    if [ ! -d "$REAL/$app" ] || [ -L "$REAL/$app" ]; then
+        echo "refusing: $REAL/$app is missing or is a link" >&2
+        exit 2
+    fi
+done
+[ -f "$REAL/vote/ChisBallot.Vote.Server.dll" ] && [ -f "$REAL/admin/ChisBallot.Admin.dll" ] && [ -f "$REAL/migrator/ChisBallot.Migrator.dll" ] || {
+    echo "refusing: the build is missing a program" >&2
+    exit 2
+}
+
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+echo "Release $STAMP"
+
+for app in vote admin migrator; do
+    DST=$BASE/$app/releases/$STAMP
+    install -d -m 755 "$DST"
+    # No links, devices or special files are copied, whatever the build folder holds.
+    rsync -rt --no-links --no-devices --no-specials --chmod=D755,F644 "$REAL/$app/" "$DST/"
+    chown -R root:root "$DST"
+done
+
+echo "Applying database changes"
+# systemd reads the settings file itself (the connection strings contain semicolons,
+# which a shell would split) and runs the migrator as its own user, sandboxed.
+systemd-run --quiet --wait --pipe --collect     -p User=chisballot-migrate     -p EnvironmentFile=/etc/chisballot/owner.env     -p WorkingDirectory="$BASE/migrator/releases/$STAMP"     -p ProtectSystem=strict -p ProtectHome=true -p PrivateTmp=true -p NoNewPrivileges=true     /usr/bin/dotnet ChisBallot.Migrator.dll
+
+previous_vote=$(readlink "$BASE/vote/current" 2>/dev/null || true)
+previous_admin=$(readlink "$BASE/admin/current" 2>/dev/null || true)
+
+switch() {
+    app=$1
+    target=$2
+    ln -sfn "$target" "$BASE/$app/current.new"
+    mv -T "$BASE/$app/current.new" "$BASE/$app/current"
+}
+
+switch vote "releases/$STAMP"
+switch admin "releases/$STAMP"
+systemctl restart chisballot-vote chisballot-admin
+
+healthy() {
+    vote=$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:5101/api/elections/health-check || true)
+    admin=$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:5102/Account/Login || true)
+    [ "$vote" = 404 ] && [ "$admin" = 200 ]
+}
+
+i=0
+until healthy; do
+    i=$((i + 1))
+    if [ "$i" -ge 20 ]; then
+        echo "The sites did not come up healthy; going back to the previous release" >&2
+        if [ -n "$previous_vote" ] && [ -n "$previous_admin" ]; then
+            switch vote "$previous_vote"
+            switch admin "$previous_admin"
+            systemctl restart chisballot-vote chisballot-admin
+        else
+            systemctl stop chisballot-vote chisballot-admin
+        fi
+        exit 1
+    fi
+    sleep 2
+done
+echo "Both sites are answering."
+
+for app in vote admin migrator; do
+    # Keep the newest releases (and whatever "current" points at); remove the rest.
+    ls -1dt "$BASE/$app"/releases/* 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
+        [ "$(readlink -f "$BASE/$app/current" 2>/dev/null || true)" = "$old" ] || rm -rf -- "$old"
+    done
+done
+echo "Deployed $STAMP"
