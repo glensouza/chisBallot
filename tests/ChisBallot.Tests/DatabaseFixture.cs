@@ -1,20 +1,24 @@
 using System.Security.Cryptography;
 using ChisBallot.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Serilog;
-using Testcontainers.MsSql;
+using Testcontainers.PostgreSql;
 
 namespace ChisBallot.Tests;
 
 /// <summary>
-/// One real SQL Server in a container for the whole test run, migrated with
-/// the same scripts and the same two database users the site uses.
+/// One real PostgreSQL in a container for the whole test run, migrated with
+/// the same scripts and the same two database roles the site uses. The
+/// migrator connects as an owner that can create roles but is not a
+/// superuser, as it would in production, so the tests also show it does not
+/// need more than that.
 /// </summary>
 public sealed class DatabaseFixture : IAsyncLifetime
 {
     private const string DatabaseName = "chisballot_test";
+    private const string OwnerName = "chisballot_owner";
 
-    private readonly MsSqlContainer container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+    private readonly PostgreSqlContainer container = new PostgreSqlBuilder("postgres:17").Build();
 
     public string OwnerConnectionString { get; private set; } = string.Empty;
 
@@ -28,14 +32,20 @@ public sealed class DatabaseFixture : IAsyncLifetime
     {
         await this.container.StartAsync();
 
-        await using (SqlConnection master = new(this.container.GetConnectionString()))
+        string ownerPassword = NewPassword();
+        await using (NpgsqlConnection superuser = new(this.container.GetConnectionString()))
         {
-            await master.OpenAsync();
-            await using SqlCommand create = new($"CREATE DATABASE {DatabaseName}", master);
-            await create.ExecuteNonQueryAsync();
+            await superuser.OpenAsync();
+            await ExecuteAsync(superuser, $"CREATE ROLE {OwnerName} WITH LOGIN CREATEROLE PASSWORD '{ownerPassword}'");
+            await ExecuteAsync(superuser, $"CREATE DATABASE {DatabaseName} OWNER {OwnerName}");
         }
 
-        SqlConnectionStringBuilder owner = new(this.container.GetConnectionString()) { InitialCatalog = DatabaseName, TrustServerCertificate = true };
+        NpgsqlConnectionStringBuilder owner = new(this.container.GetConnectionString())
+        {
+            Database = DatabaseName,
+            Username = OwnerName,
+            Password = ownerPassword,
+        };
         this.OwnerConnectionString = owner.ConnectionString;
 
         string votePassword = NewPassword();
@@ -44,8 +54,8 @@ public sealed class DatabaseFixture : IAsyncLifetime
         ILogger logger = new LoggerConfiguration().CreateLogger();
         await new Migrator(this.OwnerConnectionString, logger).MigrateAsync(new DatabaseUserPasswords(votePassword, adminPassword));
 
-        this.VoteConnectionString = new SqlConnectionStringBuilder(this.OwnerConnectionString) { UserID = "chisballot_vote", Password = votePassword }.ConnectionString;
-        this.AdminConnectionString = new SqlConnectionStringBuilder(this.OwnerConnectionString) { UserID = "chisballot_admin", Password = adminPassword }.ConnectionString;
+        this.VoteConnectionString = new NpgsqlConnectionStringBuilder(this.OwnerConnectionString) { Username = "chisballot_vote", Password = votePassword }.ConnectionString;
+        this.AdminConnectionString = new NpgsqlConnectionStringBuilder(this.OwnerConnectionString) { Username = "chisballot_admin", Password = adminPassword }.ConnectionString;
         this.Caster = new BallotCaster(this.VoteConnectionString, logger);
     }
 
@@ -54,9 +64,15 @@ public sealed class DatabaseFixture : IAsyncLifetime
         await this.container.DisposeAsync();
     }
 
+    private static async Task ExecuteAsync(NpgsqlConnection connection, string sql)
+    {
+        await using NpgsqlCommand command = new(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
     private static string NewPassword()
     {
-        return "Aa1!" + Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+        return "Aa1" + Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
     }
 }
 

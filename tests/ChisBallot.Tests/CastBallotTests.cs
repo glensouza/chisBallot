@@ -1,5 +1,5 @@
 using ChisBallot.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 
 namespace ChisBallot.Tests;
 
@@ -23,7 +23,7 @@ public sealed class CastBallotTests(DatabaseFixture database)
         Assert.NotNull(first.ReceiptCode);
         Assert.Equal(CastStatus.CodeRefused, second.Status);
         Assert.Null(second.ReceiptCode);
-        Assert.Equal(1, await CountAsync("SELECT COUNT(*) FROM dbo.Ballots WHERE ElectionId = @e", seed.ElectionId));
+        Assert.Equal(1, await CountAsync("SELECT COUNT(*) FROM ballot.ballots WHERE election_id = @e", seed.ElectionId));
     }
 
     [Fact]
@@ -96,41 +96,45 @@ public sealed class CastBallotTests(DatabaseFixture database)
         ElectionSeed seed = await ElectionSeed.CreateAsync(database);
         await database.Caster.CastAsync(seed.ElectionId, seed.Codes[0], Pick(seed, 0), []);
 
-        await using SqlConnection connection = new(database.OwnerConnectionString);
+        await using NpgsqlConnection connection = new(database.OwnerConnectionString);
         await connection.OpenAsync();
 
-        List<string> ballotColumns = await ColumnsAsync(connection, "Ballots");
-        Assert.Equal(["ElectionId", "Id", "ReceiptCode"], ballotColumns.Order().ToList());
-        Assert.Equal(["BallotId", "ChoiceId", "ContestId"], (await ColumnsAsync(connection, "BallotSelections")).Order().ToList());
-        Assert.Equal(["BallotId", "ContestId", "Name", "NameKey"], (await ColumnsAsync(connection, "BallotWriteIns")).Order().ToList());
+        List<string> ballotColumns = await ColumnsAsync(connection, "ballots");
+        Assert.Equal(["election_id", "id", "receipt_code"], ballotColumns.Order().ToList());
+        Assert.Equal(["ballot_id", "choice_id", "contest_id"], (await ColumnsAsync(connection, "ballot_selections")).Order().ToList());
+        Assert.Equal(["ballot_id", "contest_id", "name", "name_key"], (await ColumnsAsync(connection, "ballot_write_ins")).Order().ToList());
 
-        // No time, sequence, identity or row-version columns on any ballot table.
-        string orderingColumns = """
+        // No time, sequence, identity or generated columns on any ballot table.
+        await using NpgsqlCommand ordering = new("""
             SELECT COUNT(*)
-            FROM sys.columns c
-            JOIN sys.types t ON t.user_type_id = c.user_type_id
-            WHERE c.object_id IN (OBJECT_ID('dbo.Ballots'), OBJECT_ID('dbo.BallotSelections'), OBJECT_ID('dbo.BallotWriteIns'))
-              AND (c.is_identity = 1
-                   OR c.is_computed = 1
-                   OR t.name IN ('datetime', 'datetime2', 'datetimeoffset', 'smalldatetime', 'date', 'time', 'timestamp', 'rowversion'))
-            """;
-        await using SqlCommand ordering = new(orderingColumns, connection);
-        Assert.Equal(0, (int)(await ordering.ExecuteScalarAsync())!);
-
-        // The ballot's id is not sequential, and nothing references the code table.
-        await using SqlCommand links = new("""
-            SELECT COUNT(*)
-            FROM sys.foreign_keys
-            WHERE referenced_object_id = OBJECT_ID('dbo.VotingCodes') AND parent_object_id <> OBJECT_ID('dbo.VotingCodes')
+            FROM information_schema.columns
+            WHERE table_schema = 'ballot'
+              AND table_name IN ('ballots', 'ballot_selections', 'ballot_write_ins')
+              AND (is_identity = 'YES'
+                   OR is_generated <> 'NEVER'
+                   OR column_default LIKE 'nextval%'
+                   OR data_type LIKE 'timestamp%'
+                   OR data_type IN ('date', 'time without time zone', 'time with time zone'))
             """, connection);
-        Assert.Equal(0, (int)(await links.ExecuteScalarAsync())!);
+        Assert.Equal(0L, (long)(await ordering.ExecuteScalarAsync())!);
 
-        await using SqlCommand sequential = new("""
+        // Nothing but the voting_codes table itself touches the code table.
+        await using NpgsqlCommand links = new("""
             SELECT COUNT(*)
-            FROM sys.default_constraints
-            WHERE parent_object_id = OBJECT_ID('dbo.Ballots') AND definition LIKE '%sequentialid%'
+            FROM pg_constraint
+            WHERE contype = 'f'
+              AND confrelid = 'ballot.voting_codes'::regclass
+              AND conrelid <> confrelid
             """, connection);
-        Assert.Equal(0, (int)(await sequential.ExecuteScalarAsync())!);
+        Assert.Equal(0L, (long)(await links.ExecuteScalarAsync())!);
+
+        // The ballot's id has no default at all, so it cannot come from a sequence.
+        await using NpgsqlCommand defaults = new("""
+            SELECT COUNT(*)
+            FROM information_schema.columns
+            WHERE table_schema = 'ballot' AND table_name = 'ballots' AND column_name = 'id' AND column_default IS NOT NULL
+            """, connection);
+        Assert.Equal(0L, (long)(await defaults.ExecuteScalarAsync())!);
     }
 
     [Fact]
@@ -141,13 +145,13 @@ public sealed class CastBallotTests(DatabaseFixture database)
 
         foreach (string sql in new[]
         {
-            "SELECT COUNT(*) FROM dbo.Ballots",
-            "SELECT COUNT(*) FROM dbo.BallotSelections",
-            "SELECT COUNT(*) FROM dbo.BallotWriteIns",
-            "SELECT COUNT(*) FROM dbo.VotingCodes",
-            "UPDATE dbo.VotingCodes SET Used = 0",
-            "DELETE FROM dbo.Ballots",
-            "UPDATE dbo.Elections SET Status = 2",
+            "SELECT COUNT(*) FROM ballot.ballots",
+            "SELECT COUNT(*) FROM ballot.ballot_selections",
+            "SELECT COUNT(*) FROM ballot.ballot_write_ins",
+            "SELECT COUNT(*) FROM ballot.voting_codes",
+            "UPDATE ballot.voting_codes SET used = false",
+            "DELETE FROM ballot.ballots",
+            "UPDATE ballot.elections SET status = 2",
         })
         {
             await AssertDeniedAsync(database.VoteConnectionString, sql);
@@ -159,11 +163,11 @@ public sealed class CastBallotTests(DatabaseFixture database)
     {
         foreach (string sql in new[]
         {
-            "SELECT COUNT(*) FROM dbo.Ballots",
-            "SELECT COUNT(*) FROM dbo.BallotSelections",
-            "SELECT COUNT(*) FROM dbo.BallotWriteIns",
-            "SELECT COUNT(*) FROM dbo.VotingCodes",
-            "DELETE FROM dbo.VotingCodes",
+            "SELECT COUNT(*) FROM ballot.ballots",
+            "SELECT COUNT(*) FROM ballot.ballot_selections",
+            "SELECT COUNT(*) FROM ballot.ballot_write_ins",
+            "SELECT COUNT(*) FROM ballot.voting_codes",
+            "DELETE FROM ballot.voting_codes",
         })
         {
             await AssertDeniedAsync(database.AdminConnectionString, sql);
@@ -176,9 +180,9 @@ public sealed class CastBallotTests(DatabaseFixture database)
         ElectionSeed seed = await ElectionSeed.CreateAsync(database);
         await database.Caster.CastAsync(seed.ElectionId, seed.Codes[0], Pick(seed, 1), []);
 
-        SqlException whileOpen = await Assert.ThrowsAsync<SqlException>(() => ReadResultsAsync(database.VoteConnectionString, seed.ElectionId));
-        Assert.Equal(50001, whileOpen.Number);
-        await Assert.ThrowsAsync<SqlException>(() => ReadResultsAsync(database.AdminConnectionString, seed.ElectionId));
+        PostgresException whileOpen = await Assert.ThrowsAsync<PostgresException>(() => ReadResultsAsync(database.VoteConnectionString, seed.ElectionId));
+        Assert.Equal("CB001", whileOpen.SqlState);
+        await Assert.ThrowsAsync<PostgresException>(() => ReadResultsAsync(database.AdminConnectionString, seed.ElectionId));
 
         await CloseAsync(seed.ElectionId);
 
@@ -210,11 +214,11 @@ public sealed class CastBallotTests(DatabaseFixture database)
         await database.Caster.CastAsync(seed.ElectionId, seed.Codes[0], Pick(seed, 0), []);
         await database.Caster.CastAsync(seed.ElectionId, seed.Codes[1], Pick(seed, 1), []);
 
-        await using SqlConnection connection = new(database.VoteConnectionString);
+        await using NpgsqlConnection connection = new(database.VoteConnectionString);
         await connection.OpenAsync();
-        await using SqlCommand command = new("dbo.GetTurnout", connection) { CommandType = System.Data.CommandType.StoredProcedure };
-        command.Parameters.AddWithValue("@ElectionId", seed.ElectionId);
-        await using SqlDataReader reader = await command.ExecuteReaderAsync();
+        await using NpgsqlCommand command = new("SELECT codes_issued, codes_used, ballots_counted FROM ballot.get_turnout(@e)", connection);
+        command.Parameters.AddWithValue("@e", seed.ElectionId);
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
 
         Assert.Equal(3, reader.GetInt32(0));
@@ -227,17 +231,17 @@ public sealed class CastBallotTests(DatabaseFixture database)
     {
         ElectionSeed seed = await ElectionSeed.CreateAsync(database);
 
-        await using SqlConnection connection = new(database.AdminConnectionString);
+        await using NpgsqlConnection connection = new(database.AdminConnectionString);
         await connection.OpenAsync();
 
-        await AssertFailsAsync(connection, "UPDATE dbo.Elections SET ShowLiveResults = 1 WHERE Id = @e", seed.ElectionId);
-        await AssertFailsAsync(connection, "UPDATE dbo.Elections SET IsDemo = 1 WHERE Id = @e", seed.ElectionId);
-        await AssertFailsAsync(connection, "UPDATE dbo.Elections SET Status = 0 WHERE Id = @e", seed.ElectionId);
+        await AssertFailsAsync(connection, "UPDATE ballot.elections SET show_live_results = true WHERE id = @e", seed.ElectionId);
+        await AssertFailsAsync(connection, "UPDATE ballot.elections SET is_demo = true WHERE id = @e", seed.ElectionId);
+        await AssertFailsAsync(connection, "UPDATE ballot.elections SET status = 0 WHERE id = @e", seed.ElectionId);
 
         await CloseAsync(seed.ElectionId);
 
-        await AssertFailsAsync(connection, "UPDATE dbo.Elections SET Status = 1 WHERE Id = @e", seed.ElectionId);
-        await AssertFailsAsync(connection, "UPDATE dbo.Elections SET Name = N'Changed' WHERE Id = @e", seed.ElectionId);
+        await AssertFailsAsync(connection, "UPDATE ballot.elections SET status = 1 WHERE id = @e", seed.ElectionId);
+        await AssertFailsAsync(connection, "UPDATE ballot.elections SET name = 'Changed' WHERE id = @e", seed.ElectionId);
     }
 
     [Fact]
@@ -248,34 +252,34 @@ public sealed class CastBallotTests(DatabaseFixture database)
 
         await CloseAsync(seed.ElectionId);
 
-        Assert.Equal(1, await CountAsync("SELECT COUNT(*) FROM dbo.VotingCodes WHERE ElectionId = @e", seed.ElectionId));
-        Assert.Equal(1, await CountAsync("SELECT COUNT(*) FROM dbo.VotingCodes WHERE ElectionId = @e AND Used = 1", seed.ElectionId));
+        Assert.Equal(1, await CountAsync("SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = @e", seed.ElectionId));
+        Assert.Equal(1, await CountAsync("SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = @e AND used", seed.ElectionId));
     }
 
     private async Task CloseAsync(Guid electionId)
     {
-        await using SqlConnection connection = new(database.AdminConnectionString);
+        await using NpgsqlConnection connection = new(database.AdminConnectionString);
         await connection.OpenAsync();
-        await using SqlCommand command = new("dbo.CloseElection", connection) { CommandType = System.Data.CommandType.StoredProcedure };
-        command.Parameters.AddWithValue("@ElectionId", electionId);
+        await using NpgsqlCommand command = new("SELECT ballot.close_election(@e)", connection);
+        command.Parameters.AddWithValue("@e", electionId);
         await command.ExecuteNonQueryAsync();
     }
 
     private async Task<int> CountAsync(string sql, Guid electionId)
     {
-        await using SqlConnection connection = new(database.OwnerConnectionString);
+        await using NpgsqlConnection connection = new(database.OwnerConnectionString);
         await connection.OpenAsync();
-        await using SqlCommand command = new(sql, connection);
+        await using NpgsqlCommand command = new(sql, connection);
         command.Parameters.AddWithValue("@e", electionId);
-        return (int)(await command.ExecuteScalarAsync())!;
+        return (int)(long)(await command.ExecuteScalarAsync())!;
     }
 
-    private static async Task<List<string>> ColumnsAsync(SqlConnection connection, string table)
+    private static async Task<List<string>> ColumnsAsync(NpgsqlConnection connection, string table)
     {
         List<string> columns = [];
-        await using SqlCommand command = new("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @t", connection);
+        await using NpgsqlCommand command = new("SELECT column_name FROM information_schema.columns WHERE table_schema = 'ballot' AND table_name = @t", connection);
         command.Parameters.AddWithValue("@t", table);
-        await using SqlDataReader reader = await command.ExecuteReaderAsync();
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
             columns.Add(reader.GetString(0));
@@ -286,28 +290,28 @@ public sealed class CastBallotTests(DatabaseFixture database)
 
     private static async Task AssertDeniedAsync(string connectionString, string sql)
     {
-        await using SqlConnection connection = new(connectionString);
+        await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync();
-        await using SqlCommand command = new(sql, connection);
-        SqlException exception = await Assert.ThrowsAsync<SqlException>(() => command.ExecuteNonQueryAsync());
-        Assert.Contains(exception.Number, new[] { 229, 230, 262 });
+        await using NpgsqlCommand command = new(sql, connection);
+        PostgresException exception = await Assert.ThrowsAsync<PostgresException>(() => command.ExecuteNonQueryAsync());
+        Assert.Equal("42501", exception.SqlState);
     }
 
-    private static async Task AssertFailsAsync(SqlConnection connection, string sql, Guid electionId)
+    private static async Task AssertFailsAsync(NpgsqlConnection connection, string sql, Guid electionId)
     {
-        await using SqlCommand command = new(sql, connection);
+        await using NpgsqlCommand command = new(sql, connection);
         command.Parameters.AddWithValue("@e", electionId);
-        SqlException exception = await Assert.ThrowsAsync<SqlException>(() => command.ExecuteNonQueryAsync());
-        Assert.Equal(50002, exception.Number);
+        PostgresException exception = await Assert.ThrowsAsync<PostgresException>(() => command.ExecuteNonQueryAsync());
+        Assert.Equal("CB002", exception.SqlState);
     }
 
     private static async Task<List<(Guid? Choice, string? WriteIn, int Votes)>> ReadResultsAsync(string connectionString, Guid electionId)
     {
-        await using SqlConnection connection = new(connectionString);
+        await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync();
-        await using SqlCommand command = new("dbo.GetResults", connection) { CommandType = System.Data.CommandType.StoredProcedure };
-        command.Parameters.AddWithValue("@ElectionId", electionId);
-        await using SqlDataReader reader = await command.ExecuteReaderAsync();
+        await using NpgsqlCommand command = new("SELECT contest_id, choice_id, write_in, votes FROM ballot.get_results(@e)", connection);
+        command.Parameters.AddWithValue("@e", electionId);
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync();
 
         List<(Guid? Choice, string? WriteIn, int Votes)> rows = [];
         while (await reader.ReadAsync())

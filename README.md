@@ -53,7 +53,7 @@ name, the slip's code or a time.
 | `src/ChisBallot.Contracts` | Shared request and response types, safe for the browser |
 | `src/ChisBallot.Migrator` | Applies the database scripts and creates the two database users |
 | `src/ChisBallot.AppHost` | Runs everything on a laptop with one command |
-| `tests/ChisBallot.Tests` | Tests that run against a real SQL Server |
+| `tests/ChisBallot.Tests` | Tests that run against a real PostgreSQL |
 | `infra/` | Terraform for Azure and Cloudflare |
 | `site/` | The landing page |
 | `docs/` | Design and audit documentation |
@@ -79,7 +79,7 @@ APIs, Docker, and the Azure Functions Core Tools (`func`).
 dotnet run --project src/ChisBallot.AppHost
 ```
 
-This starts SQL Server in a container, applies the database scripts, creates
+This starts PostgreSQL in a container, applies the database scripts, creates
 the two database users and a practice election with eight slips, then starts
 both APIs and both sites. The Aspire dashboard (address printed on start)
 lists each part and its address, and the `migrator` log lists the practice
@@ -89,7 +89,7 @@ out of release builds.
 
 ## Run the tests
 
-You need the .NET 11 SDK and Docker. The tests start a SQL Server container,
+You need the .NET 11 SDK and Docker. The tests start a PostgreSQL container,
 apply the same migration scripts and the same two database users the sites
 use, and exercise the database as those users.
 

@@ -1,265 +1,232 @@
--- chisBallot schema. See docs/data-model.md for what each table is for.
--- Batches are separated by lines containing only GO.
+-- chisBallot schema for PostgreSQL. See docs/data-model.md for what each table
+-- is for. Applied by the migrator as the database owner.
 
-CREATE TABLE dbo.Elections (
-    Id              uniqueidentifier NOT NULL PRIMARY KEY,
-    Slug            nvarchar(60)     NOT NULL UNIQUE,
-    Name            nvarchar(200)    NOT NULL,
-    Status          tinyint          NOT NULL CHECK (Status IN (0, 1, 2)), -- 0 Draft, 1 Open, 2 Closed
-    CodesIssued     int              NOT NULL DEFAULT 0,
-    ShowLiveResults bit              NOT NULL DEFAULT 0,
-    ShuffleContests bit              NOT NULL DEFAULT 0,
-    ShuffleChoices  bit              NOT NULL DEFAULT 0,
-    IsDemo          bit              NOT NULL DEFAULT 0
-);
-GO
+CREATE SCHEMA IF NOT EXISTS ballot;
 
-CREATE TABLE dbo.Contests (
-    Id            uniqueidentifier NOT NULL PRIMARY KEY,
-    ElectionId    uniqueidentifier NOT NULL REFERENCES dbo.Elections (Id),
-    Title         nvarchar(200)    NOT NULL,
-    Seats         int              NOT NULL DEFAULT 1 CHECK (Seats >= 1),
-    MaxSelections int              NOT NULL DEFAULT 1 CHECK (MaxSelections >= 1),
-    AllowWriteIn  bit              NOT NULL DEFAULT 0,
-    SortOrder     int              NOT NULL
+CREATE TABLE ballot.elections (
+    id                uuid         NOT NULL PRIMARY KEY,
+    slug              varchar(60)  NOT NULL UNIQUE,
+    name              varchar(200) NOT NULL,
+    status            smallint     NOT NULL CHECK (status IN (0, 1, 2)), -- 0 Draft, 1 Open, 2 Closed
+    codes_issued      integer      NOT NULL DEFAULT 0,
+    show_live_results boolean      NOT NULL DEFAULT false,
+    shuffle_contests  boolean      NOT NULL DEFAULT false,
+    shuffle_choices   boolean      NOT NULL DEFAULT false,
+    is_demo           boolean      NOT NULL DEFAULT false
 );
-GO
 
-CREATE TABLE dbo.Choices (
-    Id        uniqueidentifier NOT NULL PRIMARY KEY,
-    ContestId uniqueidentifier NOT NULL REFERENCES dbo.Contests (Id),
-    Label     nvarchar(200)    NOT NULL,
-    SortOrder int              NOT NULL
+CREATE TABLE ballot.contests (
+    id             uuid         NOT NULL PRIMARY KEY,
+    election_id    uuid         NOT NULL REFERENCES ballot.elections (id),
+    title          varchar(200) NOT NULL,
+    seats          integer      NOT NULL DEFAULT 1 CHECK (seats >= 1),
+    max_selections integer      NOT NULL DEFAULT 1 CHECK (max_selections >= 1),
+    allow_write_in boolean      NOT NULL DEFAULT false,
+    sort_order     integer      NOT NULL
 );
-GO
+
+CREATE TABLE ballot.choices (
+    id         uuid         NOT NULL PRIMARY KEY,
+    contest_id uuid         NOT NULL REFERENCES ballot.contests (id),
+    label      varchar(200) NOT NULL,
+    sort_order integer      NOT NULL
+);
 
 -- One row per printed slip. Only a hash of the code is stored.
-CREATE TABLE dbo.VotingCodes (
-    ElectionId uniqueidentifier NOT NULL REFERENCES dbo.Elections (Id),
-    CodeHash   binary(32)       NOT NULL,
-    Used       bit              NOT NULL DEFAULT 0,
-    PRIMARY KEY (ElectionId, CodeHash)
+CREATE TABLE ballot.voting_codes (
+    election_id uuid    NOT NULL REFERENCES ballot.elections (id),
+    code_hash   bytea   NOT NULL CHECK (octet_length(code_hash) = 32),
+    used        boolean NOT NULL DEFAULT false,
+    PRIMARY KEY (election_id, code_hash)
 );
-GO
 
 -- No voting code, no voter, no timestamp, no sequence number.
-CREATE TABLE dbo.Ballots (
-    Id          uniqueidentifier NOT NULL PRIMARY KEY, -- random, never sequential
-    ElectionId  uniqueidentifier NOT NULL REFERENCES dbo.Elections (Id),
-    ReceiptCode char(11)         NOT NULL,
-    UNIQUE (ElectionId, ReceiptCode)
+CREATE TABLE ballot.ballots (
+    id           uuid     NOT NULL PRIMARY KEY, -- random, never sequential
+    election_id  uuid     NOT NULL REFERENCES ballot.elections (id),
+    receipt_code char(11) NOT NULL,
+    UNIQUE (election_id, receipt_code)
 );
-GO
 
-CREATE TABLE dbo.BallotSelections (
-    BallotId  uniqueidentifier NOT NULL REFERENCES dbo.Ballots (Id),
-    ContestId uniqueidentifier NOT NULL REFERENCES dbo.Contests (Id),
-    ChoiceId  uniqueidentifier NOT NULL REFERENCES dbo.Choices (Id),
-    PRIMARY KEY (BallotId, ContestId, ChoiceId)
+CREATE TABLE ballot.ballot_selections (
+    ballot_id  uuid NOT NULL REFERENCES ballot.ballots (id),
+    contest_id uuid NOT NULL REFERENCES ballot.contests (id),
+    choice_id  uuid NOT NULL REFERENCES ballot.choices (id),
+    PRIMARY KEY (ballot_id, contest_id, choice_id)
 );
-GO
 
-CREATE TABLE dbo.BallotWriteIns (
-    BallotId  uniqueidentifier NOT NULL REFERENCES dbo.Ballots (Id),
-    ContestId uniqueidentifier NOT NULL REFERENCES dbo.Contests (Id),
-    Name      nvarchar(60)     NOT NULL,
-    NameKey   nvarchar(60)     NOT NULL,
-    PRIMARY KEY (BallotId, ContestId, NameKey)
+CREATE TABLE ballot.ballot_write_ins (
+    ballot_id  uuid        NOT NULL REFERENCES ballot.ballots (id),
+    contest_id uuid        NOT NULL REFERENCES ballot.contests (id),
+    name       varchar(60) NOT NULL,
+    name_key   varchar(60) NOT NULL,
+    PRIMARY KEY (ballot_id, contest_id, name_key)
 );
-GO
-
-CREATE TYPE dbo.SelectionList AS TABLE (
-    ContestId uniqueidentifier NOT NULL,
-    ChoiceId  uniqueidentifier NOT NULL,
-    PRIMARY KEY (ContestId, ChoiceId)
-);
-GO
-
-CREATE TYPE dbo.WriteInList AS TABLE (
-    ContestId uniqueidentifier NOT NULL,
-    Name      nvarchar(60)     NOT NULL,
-    NameKey   nvarchar(60)     NOT NULL,
-    PRIMARY KEY (ContestId, NameKey)
-);
-GO
 
 -- Election lifecycle: Draft -> Open -> Closed, and Closed is final. Once an
 -- election is Open, the settings that affect how it is run are frozen.
-CREATE TRIGGER dbo.TR_Elections_Lifecycle ON dbo.Elections AFTER UPDATE AS
+-- Error code CB002 is what the application treats as "change not allowed".
+CREATE FUNCTION ballot.elections_lifecycle() RETURNS trigger
+LANGUAGE plpgsql AS $$
 BEGIN
-    SET NOCOUNT ON;
-    IF EXISTS (
-        SELECT 1
-        FROM deleted d
-        JOIN inserted i ON i.Id = d.Id
-        WHERE d.Status = 2
-           OR (d.Status = 0 AND i.Status NOT IN (0, 1))
-           OR (d.Status = 1 AND i.Status NOT IN (1, 2))
-           OR i.IsDemo <> d.IsDemo
-           OR (d.Status <> 0 AND (   i.Slug <> d.Slug
-                                  OR i.CodesIssued <> d.CodesIssued
-                                  OR i.ShowLiveResults <> d.ShowLiveResults
-                                  OR i.ShuffleContests <> d.ShuffleContests
-                                  OR i.ShuffleChoices <> d.ShuffleChoices)))
-    BEGIN
-        THROW 50002, 'This change to the election is not allowed.', 1;
-    END
+    IF OLD.status = 2
+       OR (OLD.status = 0 AND NEW.status NOT IN (0, 1))
+       OR (OLD.status = 1 AND NEW.status NOT IN (1, 2))
+       OR NEW.is_demo <> OLD.is_demo
+       OR (OLD.status <> 0 AND (   NEW.slug <> OLD.slug
+                                OR NEW.codes_issued <> OLD.codes_issued
+                                OR NEW.show_live_results <> OLD.show_live_results
+                                OR NEW.shuffle_contests <> OLD.shuffle_contests
+                                OR NEW.shuffle_choices <> OLD.shuffle_choices))
+    THEN
+        RAISE EXCEPTION 'This change to the election is not allowed.' USING ERRCODE = 'CB002';
+    END IF;
+    RETURN NEW;
 END;
-GO
+$$;
 
--- Casting a ballot is one transaction: consume the code, insert the ballot.
--- @Result: 0 cast, 1 code refused (unknown, used, wrong election or not open),
--- 2 selections refused. Nothing records which code produced which ballot.
-CREATE PROCEDURE dbo.CastBallot
-    @ElectionId  uniqueidentifier,
-    @CodeHash    binary(32),
-    @ReceiptCode char(11),
-    @Selections  dbo.SelectionList READONLY,
-    @WriteIns    dbo.WriteInList READONLY,
-    @Result      int OUTPUT
-AS
+CREATE TRIGGER tr_elections_lifecycle
+    BEFORE UPDATE ON ballot.elections
+    FOR EACH ROW EXECUTE FUNCTION ballot.elections_lifecycle();
+
+-- Casting a ballot is one function call, so one transaction: consume the
+-- code, insert the ballot. Returns 0 cast, 1 code refused (unknown, used,
+-- wrong election or not open), 2 selections refused. Nothing records which
+-- code produced which ballot. The function runs with its owner's rights, so
+-- the voting role needs no access to the ballot tables.
+CREATE FUNCTION ballot.cast_ballot(
+    p_election_id         uuid,
+    p_code_hash           bytea,
+    p_receipt_code        text,
+    p_selection_contests  uuid[],
+    p_selection_choices   uuid[],
+    p_writein_contests    uuid[],
+    p_writein_names       text[],
+    p_writein_keys        text[])
+RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, ballot AS $$
+DECLARE
+    v_ballot uuid := gen_random_uuid();
 BEGIN
-    SET NOCOUNT ON;
-    SET XACT_ABORT ON;
-
-    BEGIN TRANSACTION;
-
     IF EXISTS (
             SELECT 1
-            FROM @Selections s
-            LEFT JOIN dbo.Choices ch ON ch.Id = s.ChoiceId AND ch.ContestId = s.ContestId
-            LEFT JOIN dbo.Contests c ON c.Id = s.ContestId AND c.ElectionId = @ElectionId
-            WHERE ch.Id IS NULL OR c.Id IS NULL)
+            FROM unnest(p_selection_contests, p_selection_choices) AS s(contest_id, choice_id)
+            LEFT JOIN ballot.choices ch ON ch.id = s.choice_id AND ch.contest_id = s.contest_id
+            LEFT JOIN ballot.contests c ON c.id = s.contest_id AND c.election_id = p_election_id
+            WHERE ch.id IS NULL OR c.id IS NULL)
         OR EXISTS (
             SELECT 1
-            FROM @WriteIns w
-            LEFT JOIN dbo.Contests c ON c.Id = w.ContestId AND c.ElectionId = @ElectionId AND c.AllowWriteIn = 1
-            WHERE c.Id IS NULL)
+            FROM unnest(p_writein_contests) AS w(contest_id)
+            LEFT JOIN ballot.contests c ON c.id = w.contest_id AND c.election_id = p_election_id AND c.allow_write_in
+            WHERE c.id IS NULL)
         OR EXISTS (
             SELECT 1
-            FROM dbo.Contests c
-            WHERE c.ElectionId = @ElectionId
-              AND (SELECT COUNT(*) FROM @Selections s WHERE s.ContestId = c.Id)
-                + (SELECT COUNT(*) FROM @WriteIns w WHERE w.ContestId = c.Id) > c.MaxSelections)
-    BEGIN
-        ROLLBACK TRANSACTION;
-        SET @Result = 2;
-        RETURN;
-    END
+            FROM ballot.contests c
+            WHERE c.election_id = p_election_id
+              AND (SELECT count(*) FROM unnest(p_selection_contests) AS s(contest_id) WHERE s.contest_id = c.id)
+                + (SELECT count(*) FROM unnest(p_writein_contests) AS w(contest_id) WHERE w.contest_id = c.id) > c.max_selections)
+    THEN
+        RETURN 2;
+    END IF;
 
-    UPDATE vc
-    SET Used = 1
-    FROM dbo.VotingCodes vc
-    JOIN dbo.Elections e ON e.Id = vc.ElectionId
-    WHERE vc.ElectionId = @ElectionId
-      AND vc.CodeHash = @CodeHash
-      AND vc.Used = 0
-      AND e.Status = 1;
+    UPDATE ballot.voting_codes vc
+    SET used = true
+    FROM ballot.elections e
+    WHERE e.id = vc.election_id
+      AND vc.election_id = p_election_id
+      AND vc.code_hash = p_code_hash
+      AND NOT vc.used
+      AND e.status = 1;
 
-    IF @@ROWCOUNT = 0
-    BEGIN
-        ROLLBACK TRANSACTION;
-        SET @Result = 1;
-        RETURN;
-    END
+    IF NOT FOUND THEN
+        RETURN 1;
+    END IF;
 
-    DECLARE @BallotId uniqueidentifier = NEWID();
+    INSERT INTO ballot.ballots (id, election_id, receipt_code)
+    VALUES (v_ballot, p_election_id, p_receipt_code);
 
-    INSERT dbo.Ballots (Id, ElectionId, ReceiptCode)
-    VALUES (@BallotId, @ElectionId, @ReceiptCode);
+    INSERT INTO ballot.ballot_selections (ballot_id, contest_id, choice_id)
+    SELECT v_ballot, s.contest_id, s.choice_id
+    FROM unnest(p_selection_contests, p_selection_choices) AS s(contest_id, choice_id);
 
-    INSERT dbo.BallotSelections (BallotId, ContestId, ChoiceId)
-    SELECT @BallotId, ContestId, ChoiceId FROM @Selections;
+    INSERT INTO ballot.ballot_write_ins (ballot_id, contest_id, name, name_key)
+    SELECT v_ballot, w.contest_id, w.name, w.name_key
+    FROM unnest(p_writein_contests, p_writein_names, p_writein_keys) AS w(contest_id, name, name_key);
 
-    INSERT dbo.BallotWriteIns (BallotId, ContestId, Name, NameKey)
-    SELECT @BallotId, ContestId, Name, NameKey FROM @WriteIns;
-
-    COMMIT TRANSACTION;
-    SET @Result = 0;
+    RETURN 0;
 END;
-GO
+$$;
 
 -- Turnout is always public: how many slips were used, never what was voted.
-CREATE PROCEDURE dbo.GetTurnout
-    @ElectionId uniqueidentifier
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    SELECT
-        e.CodesIssued,
-        (SELECT COUNT(*) FROM dbo.VotingCodes vc WHERE vc.ElectionId = e.Id AND vc.Used = 1) AS CodesUsed,
-        (SELECT COUNT(*) FROM dbo.Ballots b WHERE b.ElectionId = e.Id) AS BallotsCounted
-    FROM dbo.Elections e
-    WHERE e.Id = @ElectionId;
-END;
-GO
+CREATE FUNCTION ballot.get_turnout(p_election_id uuid)
+RETURNS TABLE (codes_issued integer, codes_used integer, ballots_counted integer)
+LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, ballot AS $$
+    SELECT e.codes_issued,
+           (SELECT count(*)::integer FROM ballot.voting_codes vc WHERE vc.election_id = e.id AND vc.used),
+           (SELECT count(*)::integer FROM ballot.ballots b WHERE b.election_id = e.id)
+    FROM ballot.elections e
+    WHERE e.id = p_election_id;
+$$;
 
 -- Results are readable only once the election is Closed, or while Open when
 -- the election turned on live results. Live results are per-choice counts;
--- write-ins appear as one combined count until Closed.
-CREATE PROCEDURE dbo.GetResults
-    @ElectionId uniqueidentifier
-AS
+-- write-ins appear as one combined count until Closed. Error code CB001
+-- means "not available".
+CREATE FUNCTION ballot.get_results(p_election_id uuid)
+RETURNS TABLE (contest_id uuid, choice_id uuid, write_in text, votes integer)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, ballot AS $$
+#variable_conflict use_column
+DECLARE
+    v_status smallint;
+    v_live   boolean;
 BEGIN
-    SET NOCOUNT ON;
+    SELECT e.status, e.show_live_results INTO v_status, v_live
+    FROM ballot.elections e WHERE e.id = p_election_id;
 
-    DECLARE @Status tinyint;
-    DECLARE @Live bit;
-    SELECT @Status = Status, @Live = ShowLiveResults FROM dbo.Elections WHERE Id = @ElectionId;
+    IF v_status IS NULL OR NOT (v_status = 2 OR (v_status = 1 AND v_live)) THEN
+        RAISE EXCEPTION 'Results are not available.' USING ERRCODE = 'CB001';
+    END IF;
 
-    IF @Status IS NULL OR NOT (@Status = 2 OR (@Status = 1 AND @Live = 1))
-    BEGIN
-        THROW 50001, 'Results are not available.', 1;
-    END
-
-    SELECT ContestId, ChoiceId, WriteIn, Votes
+    RETURN QUERY
+    SELECT r.contest_id, r.choice_id, r.write_in, r.votes
     FROM (
-        SELECT ch.ContestId,
-               ch.Id AS ChoiceId,
-               CAST(NULL AS nvarchar(60)) AS WriteIn,
-               COUNT(bs.BallotId) AS Votes
-        FROM dbo.Choices ch
-        JOIN dbo.Contests c ON c.Id = ch.ContestId
-        LEFT JOIN dbo.BallotSelections bs ON bs.ChoiceId = ch.Id
-        WHERE c.ElectionId = @ElectionId
-        GROUP BY ch.ContestId, ch.Id
+        SELECT ch.contest_id AS contest_id,
+               ch.id AS choice_id,
+               NULL::text AS write_in,
+               count(bs.ballot_id)::integer AS votes
+        FROM ballot.choices ch
+        JOIN ballot.contests c ON c.id = ch.contest_id
+        LEFT JOIN ballot.ballot_selections bs ON bs.choice_id = ch.id
+        WHERE c.election_id = p_election_id
+        GROUP BY ch.contest_id, ch.id
 
         UNION ALL
 
-        SELECT w.ContestId,
-               CAST(NULL AS uniqueidentifier),
-               CASE WHEN @Status = 2 THEN w.NameKey END,
-               COUNT(*)
-        FROM dbo.BallotWriteIns w
-        JOIN dbo.Contests c ON c.Id = w.ContestId
-        WHERE c.ElectionId = @ElectionId
-        GROUP BY w.ContestId, CASE WHEN @Status = 2 THEN w.NameKey END
+        SELECT w.contest_id,
+               NULL::uuid,
+               CASE WHEN v_status = 2 THEN w.name_key::text END,
+               count(*)::integer
+        FROM ballot.ballot_write_ins w
+        JOIN ballot.contests c ON c.id = w.contest_id
+        WHERE c.election_id = p_election_id
+        GROUP BY w.contest_id, CASE WHEN v_status = 2 THEN w.name_key::text END
     ) r
-    ORDER BY ContestId, Votes DESC, ChoiceId;
+    ORDER BY r.contest_id, r.votes DESC, r.choice_id;
 END;
-GO
+$$;
 
--- Closing records the final state and deletes the codes nobody used.
-CREATE PROCEDURE dbo.CloseElection
-    @ElectionId uniqueidentifier
-AS
+-- Closing records the final state and deletes the codes nobody used. Error
+-- code CB003 means "only an open election can be closed".
+CREATE FUNCTION ballot.close_election(p_election_id uuid)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, ballot AS $$
 BEGIN
-    SET NOCOUNT ON;
-    SET XACT_ABORT ON;
+    UPDATE ballot.elections SET status = 2 WHERE id = p_election_id AND status = 1;
 
-    BEGIN TRANSACTION;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Only an open election can be closed.' USING ERRCODE = 'CB003';
+    END IF;
 
-    UPDATE dbo.Elections SET Status = 2 WHERE Id = @ElectionId AND Status = 1;
-
-    IF @@ROWCOUNT = 0
-    BEGIN
-        ROLLBACK TRANSACTION;
-        THROW 50003, 'Only an open election can be closed.', 1;
-    END
-
-    DELETE FROM dbo.VotingCodes WHERE ElectionId = @ElectionId AND Used = 0;
-
-    COMMIT TRANSACTION;
+    DELETE FROM ballot.voting_codes WHERE election_id = p_election_id AND NOT used;
 END;
-GO
+$$;

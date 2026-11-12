@@ -1,6 +1,6 @@
 using System.Reflection;
-using System.Text.RegularExpressions;
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 using Serilog;
 
 namespace ChisBallot.Data;
@@ -9,44 +9,30 @@ public sealed record DatabaseUserPasswords(string Vote, string Admin);
 
 /// <summary>
 /// Applies the embedded SQL scripts in name order and records each one in
-/// dbo.SchemaVersions. The two database users' passwords come from the
-/// deployment and are substituted in memory; they are not logged.
+/// ballot.schema_versions. The two database roles are created (or have their
+/// password refreshed) from the deployment's passwords before the scripts
+/// run, so the passwords never appear in a script and are not logged.
 /// </summary>
-public sealed partial class Migrator(string connectionString, ILogger logger)
+public sealed class Migrator(string connectionString, ILogger logger)
 {
     private const string ScriptFolder = ".Migrations.";
 
-    [GeneratedRegex(@"^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
-    private static partial Regex BatchSeparator();
-
     public async Task MigrateAsync(DatabaseUserPasswords passwords, CancellationToken cancellationToken = default)
     {
-        await using SqlConnection connection = new(connectionString);
+        await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync(cancellationToken);
 
         await ExecuteAsync(connection, null, """
-            IF OBJECT_ID('dbo.SchemaVersions') IS NULL
-                CREATE TABLE dbo.SchemaVersions (Script nvarchar(200) NOT NULL PRIMARY KEY);
+            CREATE SCHEMA IF NOT EXISTS ballot;
+            CREATE TABLE IF NOT EXISTS ballot.schema_versions (script text NOT NULL PRIMARY KEY);
             """, cancellationToken);
 
-        // Azure SQL supports database users with passwords directly. A local
-        // SQL Server needs contained database authentication switched on.
-        await ExecuteAsync(connection, null, """
-            IF CAST(SERVERPROPERTY('EngineEdition') AS int) <> 5
-            BEGIN
-                EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
-                EXEC sp_configure 'contained database authentication', 1; RECONFIGURE;
-                IF (SELECT containment FROM sys.databases WHERE name = DB_NAME()) = 0
-                BEGIN
-                    DECLARE @sql nvarchar(max) = N'ALTER DATABASE ' + QUOTENAME(DB_NAME()) + N' SET CONTAINMENT = PARTIAL WITH ROLLBACK IMMEDIATE';
-                    EXEC (@sql);
-                END
-            END
-            """, cancellationToken);
+        await EnsureRoleAsync(connection, "chisballot_vote", passwords.Vote, cancellationToken);
+        await EnsureRoleAsync(connection, "chisballot_admin", passwords.Admin, cancellationToken);
 
         List<string> applied = [];
-        await using (SqlCommand list = new("SELECT Script FROM dbo.SchemaVersions", connection))
-        await using (SqlDataReader reader = await list.ExecuteReaderAsync(cancellationToken))
+        await using (NpgsqlCommand list = new("SELECT script FROM ballot.schema_versions", connection))
+        await using (NpgsqlDataReader reader = await list.ExecuteReaderAsync(cancellationToken))
         {
             while (await reader.ReadAsync(cancellationToken))
             {
@@ -69,33 +55,47 @@ public sealed partial class Migrator(string connectionString, ILogger logger)
 
             await using Stream stream = assembly.GetManifestResourceStream(resource)!;
             using StreamReader streamReader = new(stream);
-            string sql = (await streamReader.ReadToEndAsync(cancellationToken))
-                .Replace("$(VotePassword)", Escape(passwords.Vote), StringComparison.Ordinal)
-                .Replace("$(AdminPassword)", Escape(passwords.Admin), StringComparison.Ordinal);
+            string sql = await streamReader.ReadToEndAsync(cancellationToken);
 
-            await using SqlTransaction transaction = connection.BeginTransaction();
-            foreach (string batch in BatchSeparator().Split(sql))
+            await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken);
+            await ExecuteAsync(connection, transaction, sql, cancellationToken);
+
+            await using (NpgsqlCommand record = new("INSERT INTO ballot.schema_versions (script) VALUES (@script)", connection, transaction))
             {
-                if (!string.IsNullOrWhiteSpace(batch))
-                {
-                    await ExecuteAsync(connection, transaction, batch, cancellationToken);
-                }
+                record.Parameters.AddWithValue("script", script);
+                await record.ExecuteNonQueryAsync(cancellationToken);
             }
 
-            await ExecuteAsync(connection, transaction, $"INSERT dbo.SchemaVersions (Script) VALUES (N'{script}')", cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             logger.Information("Applied migration {Script}", script);
         }
     }
 
-    private static string Escape(string value)
+    /// <summary>
+    /// Creates the role, or refreshes its password if it exists. The server
+    /// builds the statement with format(%I, %L), so the name and password are
+    /// quoted by PostgreSQL itself.
+    /// </summary>
+    private static async Task EnsureRoleAsync(NpgsqlConnection connection, string name, string password, CancellationToken cancellationToken)
     {
-        return value.Replace("'", "''", StringComparison.Ordinal);
+        string statement;
+        await using (NpgsqlCommand build = new("""
+            SELECT CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = @name)
+                        THEN format('ALTER ROLE %I WITH LOGIN PASSWORD %L', @name, @password)
+                        ELSE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', @name, @password) END
+            """, connection))
+        {
+            build.Parameters.Add(new NpgsqlParameter("name", NpgsqlDbType.Text) { Value = name });
+            build.Parameters.Add(new NpgsqlParameter("password", NpgsqlDbType.Text) { Value = password });
+            statement = (string)(await build.ExecuteScalarAsync(cancellationToken))!;
+        }
+
+        await ExecuteAsync(connection, null, statement, cancellationToken);
     }
 
-    private static async Task ExecuteAsync(SqlConnection connection, SqlTransaction? transaction, string sql, CancellationToken cancellationToken)
+    private static async Task ExecuteAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, string sql, CancellationToken cancellationToken)
     {
-        await using SqlCommand command = new(sql, connection, transaction);
+        await using NpgsqlCommand command = new(sql, connection, transaction);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }

@@ -1,5 +1,5 @@
 using ChisBallot.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Serilog;
 
 namespace ChisBallot.Migrator;
@@ -17,13 +17,13 @@ public static class DevSeed
 
     public static async Task RunAsync(string connectionString, string siteUrl, ILogger logger)
     {
-        await using SqlConnection connection = new(connectionString);
+        await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync();
 
-        await using (SqlCommand exists = new("SELECT COUNT(*) FROM dbo.Elections WHERE Slug = @slug", connection))
+        await using (NpgsqlCommand exists = new("SELECT COUNT(*) FROM ballot.elections WHERE slug = @slug", connection))
         {
-            exists.Parameters.AddWithValue("@slug", Slug);
-            if ((int)(await exists.ExecuteScalarAsync())! != 0)
+            exists.Parameters.AddWithValue("slug", Slug);
+            if ((long)(await exists.ExecuteScalarAsync())! != 0)
             {
                 logger.Information("The practice election already exists, so it was left alone.");
                 return;
@@ -31,27 +31,27 @@ public static class DevSeed
         }
 
         Guid electionId = Guid.NewGuid();
-        await ExecuteAsync(connection, "INSERT dbo.Elections (Id, Slug, Name, Status, CodesIssued, ShowLiveResults, ShuffleContests, ShuffleChoices, IsDemo) VALUES (@e, @slug, N'Practice vote', 0, @issued, 1, 1, 1, 1)",
-            ("@e", electionId), ("@slug", Slug), ("@issued", SlipCount));
+        await ExecuteAsync(connection, "INSERT INTO ballot.elections (id, slug, name, status, codes_issued, show_live_results, shuffle_contests, shuffle_choices, is_demo) VALUES (@e, @slug, 'Practice vote', 0, @issued, true, true, true, true)",
+            ("e", electionId), ("slug", Slug), ("issued", SlipCount));
 
         Guid pickThree = Guid.NewGuid();
-        await ExecuteAsync(connection, "INSERT dbo.Contests (Id, ElectionId, Title, Seats, MaxSelections, AllowWriteIn, SortOrder) VALUES (@c, @e, N'Pick three field trip spots', 3, 3, 1, 1)",
-            ("@c", pickThree), ("@e", electionId));
+        await ExecuteAsync(connection, "INSERT INTO ballot.contests (id, election_id, title, seats, max_selections, allow_write_in, sort_order) VALUES (@c, @e, 'Pick three field trip spots', 3, 3, true, 1)",
+            ("c", pickThree), ("e", electionId));
         string[] spots = ["Science museum", "Zoo", "Aquarium", "State capitol", "Botanical garden", "Planetarium"];
         for (int index = 0; index < spots.Length; index++)
         {
-            await ExecuteAsync(connection, "INSERT dbo.Choices (Id, ContestId, Label, SortOrder) VALUES (NEWID(), @c, @label, @n)",
-                ("@c", pickThree), ("@label", spots[index]), ("@n", index));
+            await ExecuteAsync(connection, "INSERT INTO ballot.choices (id, contest_id, label, sort_order) VALUES (gen_random_uuid(), @c, @label, @n)",
+                ("c", pickThree), ("label", spots[index]), ("n", index));
         }
 
         Guid lunch = Guid.NewGuid();
-        await ExecuteAsync(connection, "INSERT dbo.Contests (Id, ElectionId, Title, Seats, MaxSelections, AllowWriteIn, SortOrder) VALUES (@c, @e, N'Should lunch be longer?', 1, 1, 0, 2)",
-            ("@c", lunch), ("@e", electionId));
+        await ExecuteAsync(connection, "INSERT INTO ballot.contests (id, election_id, title, seats, max_selections, allow_write_in, sort_order) VALUES (@c, @e, 'Should lunch be longer?', 1, 1, false, 2)",
+            ("c", lunch), ("e", electionId));
         string[] answers = ["Yes", "No"];
         for (int index = 0; index < answers.Length; index++)
         {
-            await ExecuteAsync(connection, "INSERT dbo.Choices (Id, ContestId, Label, SortOrder) VALUES (NEWID(), @c, @label, @n)",
-                ("@c", lunch), ("@label", answers[index]), ("@n", index));
+            await ExecuteAsync(connection, "INSERT INTO ballot.choices (id, contest_id, label, sort_order) VALUES (gen_random_uuid(), @c, @label, @n)",
+                ("c", lunch), ("label", answers[index]), ("n", index));
         }
 
         List<string> codes = [];
@@ -59,11 +59,11 @@ public static class DevSeed
         {
             string code = VotingCode.Generate();
             codes.Add(code);
-            await ExecuteAsync(connection, "INSERT dbo.VotingCodes (ElectionId, CodeHash) VALUES (@e, @h)",
-                ("@e", electionId), ("@h", VotingCode.Hash(code)));
+            await ExecuteAsync(connection, "INSERT INTO ballot.voting_codes (election_id, code_hash) VALUES (@e, @h)",
+                ("e", electionId), ("h", VotingCode.Hash(code)));
         }
 
-        await ExecuteAsync(connection, "UPDATE dbo.Elections SET Status = 1 WHERE Id = @e", ("@e", electionId));
+        await ExecuteAsync(connection, "UPDATE ballot.elections SET status = 1 WHERE id = @e", ("e", electionId));
 
         logger.Information("Practice election is open. Election page: {Url}/e/{Slug}", siteUrl, Slug);
         foreach (string code in codes)
@@ -72,9 +72,9 @@ public static class DevSeed
         }
     }
 
-    private static async Task ExecuteAsync(SqlConnection connection, string sql, params (string Name, object Value)[] parameters)
+    private static async Task ExecuteAsync(NpgsqlConnection connection, string sql, params (string Name, object Value)[] parameters)
     {
-        await using SqlCommand command = new(sql, connection);
+        await using NpgsqlCommand command = new(sql, connection);
         foreach ((string name, object value) in parameters)
         {
             command.Parameters.AddWithValue(name, value);

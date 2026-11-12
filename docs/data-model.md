@@ -8,67 +8,67 @@ another's.
 ## Tables
 
 ```sql
-CREATE TABLE Elections (
-    Id          uniqueidentifier NOT NULL PRIMARY KEY,
-    Slug        nvarchar(60)     NOT NULL UNIQUE,   -- vote.chisballot.org/e/{slug}
-    Name        nvarchar(200)    NOT NULL,
-    Status      tinyint          NOT NULL,          -- 0 Draft, 1 Open, 2 Closed
-    CodesIssued int              NOT NULL DEFAULT 0,-- fixed when the slips are printed
-    ShowLiveResults bit          NOT NULL DEFAULT 0,-- set in Draft, frozen once Open
-    ShuffleContests bit          NOT NULL DEFAULT 0,-- each voter sees contests in their own random order
-    ShuffleChoices  bit          NOT NULL DEFAULT 0,-- each voter sees choices in their own random order
-    IsDemo          bit          NOT NULL DEFAULT 0 -- practice election; set at creation, never changed
+CREATE TABLE ballot.elections (
+    id                uuid         NOT NULL PRIMARY KEY,
+    slug              varchar(60)  NOT NULL UNIQUE,    -- vote.chisballot.org/e/{slug}
+    name              varchar(200) NOT NULL,
+    status            smallint     NOT NULL,           -- 0 Draft, 1 Open, 2 Closed
+    codes_issued      integer      NOT NULL DEFAULT 0, -- fixed when the slips are printed
+    show_live_results boolean      NOT NULL DEFAULT false, -- set in Draft, frozen once Open
+    shuffle_contests  boolean      NOT NULL DEFAULT false, -- each voter sees contests in their own random order
+    shuffle_choices   boolean      NOT NULL DEFAULT false, -- each voter sees choices in their own random order
+    is_demo           boolean      NOT NULL DEFAULT false  -- practice election; set at creation, never changed
 );
 
 -- One question on the ballot: an officer race or a yes/no motion.
-CREATE TABLE Contests (
-    Id            uniqueidentifier NOT NULL PRIMARY KEY,
-    ElectionId    uniqueidentifier NOT NULL REFERENCES Elections (Id),
-    Title         nvarchar(200)    NOT NULL,
-    Seats         int              NOT NULL DEFAULT 1, -- winners to elect; "top 3" is Seats = 3
-    MaxSelections int              NOT NULL DEFAULT 1, -- most picks one voter may make
-    AllowWriteIn  bit              NOT NULL DEFAULT 0, -- voters may type a name not on the list
-    SortOrder     int              NOT NULL
+CREATE TABLE ballot.contests (
+    id             uuid         NOT NULL PRIMARY KEY,
+    election_id    uuid         NOT NULL REFERENCES ballot.elections (id),
+    title          varchar(200) NOT NULL,
+    seats          integer      NOT NULL DEFAULT 1, -- winners to elect; "top 3" is seats = 3
+    max_selections integer      NOT NULL DEFAULT 1, -- most picks one voter may make
+    allow_write_in boolean      NOT NULL DEFAULT false, -- voters may type a name not on the list
+    sort_order     integer      NOT NULL
 );
 
-CREATE TABLE Choices (
-    Id        uniqueidentifier NOT NULL PRIMARY KEY,
-    ContestId uniqueidentifier NOT NULL REFERENCES Contests (Id),
-    Label     nvarchar(200)    NOT NULL,
-    SortOrder int              NOT NULL
+CREATE TABLE ballot.choices (
+    id         uuid         NOT NULL PRIMARY KEY,
+    contest_id uuid         NOT NULL REFERENCES ballot.contests (id),
+    label      varchar(200) NOT NULL,
+    sort_order integer      NOT NULL
 );
 
 -- One row per printed slip. Only a hash of the code is stored.
-CREATE TABLE VotingCodes (
-    ElectionId uniqueidentifier NOT NULL REFERENCES Elections (Id),
-    CodeHash   binary(32)       NOT NULL,
-    Used       bit              NOT NULL DEFAULT 0,
-    PRIMARY KEY (ElectionId, CodeHash)
+CREATE TABLE ballot.voting_codes (
+    election_id uuid    NOT NULL REFERENCES ballot.elections (id),
+    code_hash   bytea   NOT NULL,
+    used        boolean NOT NULL DEFAULT false,
+    PRIMARY KEY (election_id, code_hash)
 );
 
 -- No voting code, no voter, no timestamp, no sequence number.
-CREATE TABLE Ballots (
-    Id          uniqueidentifier NOT NULL PRIMARY KEY, -- random, never sequential
-    ElectionId  uniqueidentifier NOT NULL REFERENCES Elections (Id),
-    ReceiptCode char(11)         NOT NULL,
-    UNIQUE (ElectionId, ReceiptCode)
+CREATE TABLE ballot.ballots (
+    id           uuid     NOT NULL PRIMARY KEY, -- random, never sequential
+    election_id  uuid     NOT NULL REFERENCES ballot.elections (id),
+    receipt_code char(11) NOT NULL,
+    UNIQUE (election_id, receipt_code)
 );
 
-CREATE TABLE BallotSelections (
-    BallotId  uniqueidentifier NOT NULL REFERENCES Ballots (Id),
-    ContestId uniqueidentifier NOT NULL REFERENCES Contests (Id),
-    ChoiceId  uniqueidentifier NOT NULL REFERENCES Choices (Id),
-    PRIMARY KEY (BallotId, ContestId, ChoiceId)
+CREATE TABLE ballot.ballot_selections (
+    ballot_id  uuid NOT NULL REFERENCES ballot.ballots (id),
+    contest_id uuid NOT NULL REFERENCES ballot.contests (id),
+    choice_id  uuid NOT NULL REFERENCES ballot.choices (id),
+    PRIMARY KEY (ballot_id, contest_id, choice_id)
 );
 
--- Typed-in names, only for contests with AllowWriteIn. NameKey is the
+-- Typed-in names, only for contests with allow_write_in. name_key is the
 -- normalized form used for counting (see "Results and ties").
-CREATE TABLE BallotWriteIns (
-    BallotId  uniqueidentifier NOT NULL REFERENCES Ballots (Id),
-    ContestId uniqueidentifier NOT NULL REFERENCES Contests (Id),
-    Name      nvarchar(60)     NOT NULL,
-    NameKey   nvarchar(60)     NOT NULL,
-    PRIMARY KEY (BallotId, ContestId, NameKey)
+CREATE TABLE ballot.ballot_write_ins (
+    ballot_id  uuid        NOT NULL REFERENCES ballot.ballots (id),
+    contest_id uuid        NOT NULL REFERENCES ballot.contests (id),
+    name       varchar(60) NOT NULL,
+    name_key   varchar(60) NOT NULL,
+    PRIMARY KEY (ballot_id, contest_id, name_key)
 );
 ```
 
@@ -76,8 +76,8 @@ CREATE TABLE BallotWriteIns (
 
 **Casting a ballot** is one transaction:
 
-1. `UPDATE VotingCodes SET Used = 1 WHERE ElectionId = @e AND CodeHash = @h AND Used = 0`,
-   joined to an election whose `Status` is Open. If no row changes, stop:
+1. `UPDATE ballot.voting_codes SET used = true WHERE election_id = @e AND code_hash = @h AND NOT used`,
+   joined to an election whose `status` is Open. If no row changes, stop:
    the code is unknown, already used, or belongs to another election.
 2. Insert the ballot, its selections and its write-ins. For each contest,
    choices plus write-ins must not exceed `MaxSelections`, and write-ins are
@@ -164,7 +164,7 @@ CREATE TABLE BallotWriteIns (
 
 - Codes are generated per election. A slip from one vote does nothing in
   another, and a member's ballots in different elections cannot be linked.
-- `Ballots` and `VotingCodes` share no column except the election. Ballot
+- `ballot.ballots` and `ballot.voting_codes` share no column except the election. Ballot
   ids are random so storage order does not reveal voting order.
 - Request logs must never record the code or the ballot contents.
 
@@ -175,14 +175,21 @@ CREATE TABLE BallotWriteIns (
 
 ## Implementation
 
-The schema, the two database users and their grants are the SQL scripts in
+The database is PostgreSQL. The schema and the grants of the two database
+roles (`chisballot_vote`, `chisballot_admin`) are the SQL scripts in
 `src/ChisBallot.Data/Migrations/`. The sites reach ballots only through
-stored procedures: `CastBallot`, `GetTurnout`, `GetResults` (voting and admin
-site) and `CloseElection` (admin site). Neither database user has any
-table-level right to read ballots, codes or tallies, so the database itself
-refuses an early peek, whatever the application code does. A trigger on
-`Elections` enforces the lifecycle: Draft to Open to Closed, Closed final,
-settings frozen once Open.
+functions: `ballot.cast_ballot`, `ballot.get_turnout`, `ballot.get_results`
+(voting and admin site) and `ballot.close_election` (admin site). They run
+with their owner's rights (`SECURITY DEFINER`), and execute rights on every
+function are taken from `PUBLIC` and given to named roles only. Neither
+role has any table-level right to read ballots, codes or tallies, so the
+database itself refuses an early peek, whatever the application code does.
+A trigger on `ballot.elections` enforces the lifecycle: Draft to Open to
+Closed, Closed final, settings frozen once Open.
+
+The migrator creates the two roles itself from passwords it is given, and
+needs only a role that can create roles and own the database, not a
+superuser.
 
 The tie rule is `ResultsCalculator` in `src/ChisBallot.Contracts`. It is a
 pure function of the counts, so the audit page can run the same rules in a

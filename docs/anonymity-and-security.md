@@ -14,20 +14,20 @@ reporting. The infrastructure entries can be checked in `infra/`.
 ## Checked today
 
 The tests in `tests/ChisBallot.Tests/CastBallotTests.cs` run against a real
-SQL Server, using the same migration and the same two database users as the
+PostgreSQL, using the same migration and the same two database roles as the
 sites.
 
 | Measure | Code | Test |
 |---|---|---|
-| A code works once | `dbo.CastBallot` in `src/ChisBallot.Data/Migrations/001_schema.sql` | `A_code_works_once` |
-| A code from another election is refused; a closed or draft election refuses codes | `dbo.CastBallot` | `A_code_from_another_election_is_refused`, `A_code_is_refused_unless_the_election_is_open` |
-| Consuming the code and inserting the ballot are one transaction; bad choices do not use up the code | `dbo.CastBallot` | `Choices_that_do_not_fit_are_refused_and_the_code_stays_usable` |
-| A ballot row has no code, time, sequence or identity column, and nothing references the code table | `dbo.Ballots`, `BallotSelections`, `BallotWriteIns` | `A_ballot_row_has_nothing_that_links_it_to_a_code_or_to_voting_order` |
+| A code works once | `ballot.cast_ballot` in `src/ChisBallot.Data/Migrations/001_schema.sql` | `A_code_works_once` |
+| A code from another election is refused; a closed or draft election refuses codes | `ballot.cast_ballot` | `A_code_from_another_election_is_refused`, `A_code_is_refused_unless_the_election_is_open` |
+| Consuming the code and inserting the ballot are one transaction; bad choices do not use up the code | `ballot.cast_ballot` | `Choices_that_do_not_fit_are_refused_and_the_code_stays_usable` |
+| A ballot row has no code, time, sequence or identity column, and nothing references the code table | `ballot.ballots`, `ballot_selections`, `ballot_write_ins` | `A_ballot_row_has_nothing_that_links_it_to_a_code_or_to_voting_order` |
 | The voting site cannot read or write ballots, codes or tallies directly; the admin site cannot read ballots or codes | Grants in `002_users_and_grants.sql` | `The_voting_site_cannot_read_or_write_ballots_codes_or_tallies_directly`, `The_admin_site_cannot_read_ballots_or_codes` |
-| Results are unreadable until Closed, unless live results were turned on; live results are counts only | `dbo.GetResults` | `Results_are_unreadable_until_the_election_is_closed`, `Live_results_show_counts_while_open_only_when_the_election_turned_them_on` |
-| Turnout is public and ballots never exceed codes used | `dbo.GetTurnout` | `Turnout_is_public_and_ballots_never_exceed_codes_used` |
-| Closed is final and settings freeze once Open | `TR_Elections_Lifecycle` | `A_closed_election_is_final_and_settings_freeze_once_open` |
-| Closing deletes only unused codes | `dbo.CloseElection` | `Closing_deletes_only_the_unused_codes` |
+| Results are unreadable until Closed, unless live results were turned on; live results are counts only | `ballot.get_results` | `Results_are_unreadable_until_the_election_is_closed`, `Live_results_show_counts_while_open_only_when_the_election_turned_them_on` |
+| Turnout is public and ballots never exceed codes used | `ballot.get_turnout` | `Turnout_is_public_and_ballots_never_exceed_codes_used` |
+| Closed is final and settings freeze once Open | `tr_elections_lifecycle` | `A_closed_election_is_final_and_settings_freeze_once_open` |
+| Closing deletes only unused codes | `ballot.close_election` | `Closing_deletes_only_the_unused_codes` |
 | Write-ins are limited, normalized and counted by a fixed key | `src/ChisBallot.Data/WriteInName.cs` | `CodeTests`, `A_write_in_counts_against_the_limit_and_is_normalized` |
 | Codes are 80 random bits and only a hash is stored; receipts are random and unrelated | `VotingCode.cs`, `ReceiptCode.cs` | `CodeTests` |
 | Casting logs only the election and the outcome, never a code, hash, choices or address | `BallotCaster.cs` | Read the two `logger.Information` calls |
@@ -37,9 +37,9 @@ sites.
 | Measure | Code | Test |
 |---|---|---|
 | A new election is checked twice, in the admin page and again in the admin API, before it reaches the database | `src/ChisBallot.Contracts/ElectionRequestValidator.cs`, `ElectionAdmin.CreateAsync` | `ElectionRequestValidatorTests`, `A_bad_request_or_a_used_address_is_refused_with_a_reason`, `A_failed_create_leaves_nothing_behind` |
-| A vote cannot open without slips, opens once, and closes once; nothing reopens a closed vote | `ElectionAdmin.OpenAsync`, `CloseAsync`, `TR_Elections_Lifecycle` | `An_election_with_slips_opens_once_and_then_closes_once`, `A_closed_election_is_final_and_settings_freeze_once_open` |
+| A vote cannot open without slips, opens once, and closes once; nothing reopens a closed vote | `ElectionAdmin.OpenAsync`, `CloseAsync`, `tr_elections_lifecycle` | `An_election_with_slips_opens_once_and_then_closes_once`, `A_closed_election_is_final_and_settings_freeze_once_open` |
 | A tie that decides who wins is flagged and never broken; clear winners keep their seats | `src/ChisBallot.Contracts/ResultsCalculator.cs` | `ResultsCalculatorTests` (ten cases, including a level yes/no vote and a vote nobody voted in) |
-| The admin site shows results only after the database allows them, and the admin database user still cannot read ballots | `ResultsReader`, `dbo.GetResults` | `Results_come_back_only_after_close_and_follow_the_tie_rule`, `The_admin_site_cannot_read_ballots_or_codes` |
+| The admin site shows results only after the database allows them, and the admin database user still cannot read ballots | `ResultsReader`, `ballot.get_results` | `Results_come_back_only_after_close_and_follow_the_tie_rule`, `The_admin_site_cannot_read_ballots_or_codes` |
 
 ### Making the slips
 
@@ -70,9 +70,9 @@ Report problems as a GitHub issue on this repository.
 
 | Measure | Where to check |
 |---|---|
-| The `Ballots` table has no voter, no voting code, no code hash, no timestamp and no sequence number. Its only columns are a random id, the election id and a random receipt code. | `docs/data-model.md`, then the schema migration in the data project |
-| Ballot ids and receipt codes are random, never sequential, so storage order does not reveal voting order. The receipt code is not derived from the voting code. | Ballot creation code; no `NEWSEQUENTIALID`, `IDENTITY` or `DEFAULT SYSDATETIME` on any ballot table |
-| `VotingCodes` and `Ballots` share no column except the election id. | Schema migration |
+| The `ballot.ballots` table has no voter, no voting code, no code hash, no timestamp and no sequence number. Its only columns are a random id, the election id and a random receipt code. | `docs/data-model.md`, then the schema migration in the data project |
+| Ballot ids and receipt codes are random, never sequential, so storage order does not reveal voting order. The receipt code is not derived from the voting code. | Ballot creation code; no sequence, `IDENTITY` or time default on any ballot table |
+| `ballot.voting_codes` and `ballot.ballots` share no column except the election id. | Schema migration |
 | Casting a ballot is one transaction: mark the code used, insert the ballot. Nothing records which code produced which ballot. | The cast-ballot code and its tests |
 | If an election randomizes question and option order, the shuffle runs in the voter's browser. The order shown is never sent to the server, stored or logged, and is not derived from the voting code. Ballots store selections with no order. | The ballot page script (shuffle uses `crypto.getRandomValues`); the cast request body carries no order; schema has no order column |
 | The voter never signs in and the voting site has no accounts, so there is no identity to attach. | Voting site has no authentication code; `app.yml` and `infra/main.tf` configure no auth for it |
@@ -86,7 +86,7 @@ refused.
 
 | Measure | Where to check |
 |---|---|
-| Only a hash of each code is stored, so the database alone cannot reproduce a slip. | Code generation and the `VotingCodes.CodeHash` column |
+| Only a hash of each code is stored, so the database alone cannot reproduce a slip. | Code generation and the `ballot.voting_codes.code_hash` column |
 | Codes come from a cryptographic random number generator and are long enough that guessing is infeasible. The length is stated here once the code exists. | Code generation |
 | A code works once and only in its own election. | The single `UPDATE ... WHERE Used = 0` joined to an Open election in `docs/data-model.md`, and its tests |
 | Wrong guesses are rate-limited, and the ballot page is behind a Cloudflare Turnstile bot check. | Rate-limit code in the vote API; `cloudflare_turnstile_widget` in `infra/dns.tf` |

@@ -10,8 +10,8 @@ builder.ConfigureFunctionsWebApplication();
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateLogger();
 
-string connectionString = builder.Configuration["SqlConnectionString"]
-    ?? throw new InvalidOperationException("SqlConnectionString is not set.");
+string connectionString = builder.Configuration["DatabaseConnectionString"]
+    ?? throw new InvalidOperationException("DatabaseConnectionString is not set.");
 
 builder.Services.AddSingleton(Log.Logger);
 builder.Services.AddSingleton(new ElectionReader(connectionString));
