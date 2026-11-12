@@ -44,7 +44,9 @@ for app in vote admin migrator; do
 done
 
 echo "Applying database changes"
-runuser -u chisballot-migrate -- sh -c "set -a; . /etc/chisballot/owner.env; set +a; cd $BASE/migrator/releases/$STAMP && exec /usr/bin/dotnet ChisBallot.Migrator.dll"
+# systemd reads the settings file itself (the connection strings contain semicolons,
+# which a shell would split) and runs the migrator as its own user, sandboxed.
+systemd-run --quiet --wait --pipe --collect     -p User=chisballot-migrate     -p EnvironmentFile=/etc/chisballot/owner.env     -p WorkingDirectory="$BASE/migrator/releases/$STAMP"     -p ProtectSystem=strict -p ProtectHome=true -p PrivateTmp=true -p NoNewPrivileges=true     /usr/bin/dotnet ChisBallot.Migrator.dll
 
 previous_vote=$(readlink "$BASE/vote/current" 2>/dev/null || true)
 previous_admin=$(readlink "$BASE/admin/current" 2>/dev/null || true)

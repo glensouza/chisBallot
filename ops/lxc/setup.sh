@@ -102,6 +102,24 @@ visudo -cf "$SUDOERS.new" >/dev/null
 chmod 440 "$SUDOERS.new"
 mv "$SUDOERS.new" "$SUDOERS"
 
+# The machine's own (root) Docker must not listen on the network. Some container
+# templates switch on an unauthenticated TCP API; anyone who can reach it is root.
+if [ -f /etc/docker/daemon.json ] && grep -q 'tcp://' /etc/docker/daemon.json; then
+    cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+    printf '%s
+' '{' '  "log-driver": "journald",' '  "hosts": ["unix:///var/run/docker.sock"]' '}' > /etc/docker/daemon.json
+    systemctl restart docker
+fi
+
+# Firewall rule for the pull-request user (see chisballot-pr.nft). The system's
+# own nftables file loads everything in /etc/nftables.d.
+install -d -m 755 /etc/nftables.d
+install -m 644 "$HERE/chisballot-pr.nft" /etc/nftables.d/chisballot-pr.nft
+grep -q 'include "/etc/nftables.d/\*.nft"' /etc/nftables.conf || echo 'include "/etc/nftables.d/*.nft"' >> /etc/nftables.conf
+nft -c -f /etc/nftables.conf
+systemctl enable nftables >/dev/null 2>&1
+systemctl restart nftables
+
 install -d -m 755 /var/backups/chisballot 2>/dev/null || true
 
 systemctl daemon-reload

@@ -65,10 +65,19 @@ The whole container is also backed up weekly by Proxmox to the NAS, with
 `tmpdir: /var/tmp/vzdump` in `/etc/vzdump.conf` (an unprivileged container
 cannot be archived from a staging folder on the NAS itself).
 
+## Docker on this machine
+
+Two Dockers exist: the machine's own (root) one, which nothing here uses and which
+`setup.sh` makes sure listens only on its local socket, and `runner-pr`'s rootless
+one for previews. Some container templates turn on Docker's unauthenticated TCP
+API (port 2375); `setup.sh` removes that, because anyone who can reach it is root.
+
 ## Firewall note (inside the container)
 
 `/etc/nftables.conf` has a table that applies to the `runner-pr` user only:
-internet and the router's DNS allowed, every private address range rejected.
+internet and the router's DNS allowed, every private address range rejected, and
+this machine's own services (database, both sites, the tunnel metrics, SSH, local mail)
+rejected.
 Pull-request code, which runs as that user, therefore cannot reach the Proxmox
 host, the router, the NAS or anything else on the home network, and cannot reach
 this machine's PostgreSQL either. The network itself is also separated by a VLAN
@@ -83,8 +92,7 @@ waits for approval in the `production` environment, then runs
 The first admin is made on the server:
 
 ```
-cd /opt/chisballot/admin/current
-sudo -u chisballot-admin env $(cat /etc/chisballot/admin.env | xargs) dotnet ChisBallot.Admin.dll create-admin you@example.org
+systemd-run --wait --pipe --collect -p User=chisballot-admin   -p EnvironmentFile=/etc/chisballot/admin.env -p ReadWritePaths=/var/lib/chisballot-admin   -p ProtectSystem=strict -p WorkingDirectory=/opt/chisballot/admin/current   /usr/bin/dotnet ChisBallot.Admin.dll create-admin you@example.org
 ```
 
 It prints a one-time link. Open it, choose a password, then add a passkey or an
