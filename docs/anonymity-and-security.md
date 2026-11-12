@@ -32,7 +32,19 @@ sites.
 | Codes are 80 random bits and only a hash is stored; receipts are random and unrelated | `VotingCode.cs`, `ReceiptCode.cs` | `CodeTests` |
 | Casting logs only the election and the outcome, never a code, hash, choices or address | `BallotCaster.cs` | Read the two `logger.Information` calls |
 
-Not covered yet: the websites, the audit page, demo mode, rate limiting, and
+### The sites
+
+| Measure | Code | How to check |
+|---|---|---|
+| The voting API has no admin routes and no way to read results or ballots; it exposes a ballot, turnout and casting a ballot | `src/ChisBallot.Vote.Api/VoteFunctions.cs` | Read the file; `/api/me` and `/api/elections` return 404 on the voting API |
+| The ballot page reads the code from the address fragment, which the browser never sends, then removes it from the address bar; the code is sent only in the body of one POST | `src/ChisBallot.Vote/Pages/Ballot.razor` | Read `OnInitializedAsync` and `SubmitAsync` |
+| The ballot page sends no referrer, and the site loads no analytics or third-party scripts | `src/ChisBallot.Vote/wwwroot/index.html`, `staticwebapp.config.json` | Read the two files |
+| Random question and option order is chosen in the browser with the cryptographic random generator and never sent | `src/ChisBallot.Vote/Shuffler.cs`, `Ballot.razor` | `CastRequest` in `ChisBallot.Contracts` has no order field |
+| Every admin route and API call requires the admin role, twice: by the site's route rules and again inside each admin function | `src/ChisBallot.Admin/wwwroot/staticwebapp.config.json`, `src/ChisBallot.Admin.Api/AdminPrincipal.cs` | Read both |
+| The local-development admin sign-in is compiled out of release builds, and CI fails if it is not | `#if DEBUG` in `AdminPrincipal.cs`; the "Dev-only admin sign-in" step in `.github/workflows/app.yml` | Read the step; it searches the release DLL |
+| The admin API connects as `chisballot_admin`, the voting API as `chisballot_vote` | `src/ChisBallot.AppHost/AppHost.cs` locally; `infra/main.tf` when deployed | Read both |
+
+Not covered yet: the audit page, demo mode, rate limiting, the bot check, and
 the tie check.
 
 Report problems as a GitHub issue on this repository.
@@ -67,7 +79,7 @@ refused.
 
 | Measure | Where to check |
 |---|---|
-| The voting link is `vote.chisballot.org/v/#<code>`. The part after `#` is never sent by the browser to any server, so it cannot appear in a web server log, a CDN log or a Referer header. | The router and the page script: the code is read from `location.hash` only |
+| The voting link is `vote.chisballot.org/v/<slug>#<code>`. The slug only names the election. The part after `#` is never sent by the browser to any server, so it cannot appear in a web server log, a CDN log or a Referer header. | `src/ChisBallot.Vote/Pages/Ballot.razor` reads the code from the address fragment only, then removes it from the address bar |
 | The page sends the code only in the body of a POST to the site's own API. Never in a URL path or query string. | Client and API code; search for any use of the code in a URL |
 | No code, no code hash alongside anything else, and no ballot contents are logged. The cast-ballot request does not log IP addresses. | Serilog configuration and every log call on the cast path |
 | No analytics, tracking scripts or third-party fonts on the ballot page. The only third-party script is Turnstile, which sees the page visit but not the fragment. | The page's HTML and script tags |

@@ -47,6 +47,18 @@ jobs:
       - name: Test
         run: dotnet test --no-build --configuration Release
 
+      - name: Dev-only admin sign-in is not in the release build
+        run: |
+          python3 - <<'PY'
+          import glob
+          marker = "CHISBALLOT_DEV_ADMIN".encode("utf-16-le")
+          dlls = glob.glob("src/ChisBallot.Admin.Api/bin/Release/**/ChisBallot.Admin.Api.dll", recursive=True)
+          assert dlls, "Release build of the admin API was not found"
+          for dll in dlls:
+              assert marker not in open(dll, "rb").read(), dll + " contains the dev admin bypass"
+          print("ok:", dlls)
+          PY
+
       - name: Publish clients
         run: |
           dotnet publish src/ChisBallot.Vote --configuration Release --output publish/vote

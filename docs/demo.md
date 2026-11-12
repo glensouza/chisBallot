@@ -21,7 +21,7 @@ how a real election works.
   needed.
 - The demo page (`/e/demo`) has a **Get a demo slip** button. It returns a
   fresh single-use code for the demo election only, then opens the ballot at
-  `/v/#{code}`. In a real vote that slip comes from the pile on the table.
+  `/v/{slug}#{code}`. In a real vote that slip comes from the pile on the table.
 - Every demo page carries a fixed banner: **DEMO: not a real vote**, in a
   different color from real ballots.
 - Demo elections turn on everything worth showing: several seats, a write-in

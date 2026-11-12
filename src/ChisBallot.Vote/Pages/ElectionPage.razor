@@ -1,0 +1,107 @@
+@page "/e/{Slug}"
+@implements IDisposable
+@inject HttpClient Http
+
+<PageTitle>@(this.election?.Name ?? "Vote")</PageTitle>
+
+@if (this.election is null)
+{
+    <p>@(this.notFound ? "That vote could not be found." : "Loading…")</p>
+}
+else
+{
+    @if (this.election.IsDemo)
+    {
+        <div class="demo-banner">DEMO: not a real vote</div>
+    }
+
+    <h1>@this.election.Name</h1>
+    <p>@StatusText(this.election.Status)</p>
+
+    @if (this.turnout is not null)
+    {
+        <div class="chis-card">
+            <h2>Turnout</h2>
+            <p><strong>@this.turnout.CodesUsed</strong> of <strong>@this.turnout.CodesIssued</strong> slips used</p>
+            <div class="meter" role="progressbar" aria-valuenow="@this.turnout.CodesUsed" aria-valuemin="0" aria-valuemax="@this.turnout.CodesIssued">
+                <div style="width: @this.Percent()%"></div>
+            </div>
+            <p>This shows how many have voted, never what they chose.</p>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public string Slug { get; set; } = string.Empty;
+
+    private readonly CancellationTokenSource stop = new();
+    private ElectionView? election;
+    private TurnoutView? turnout;
+    private bool notFound;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            this.election = await this.Http.GetFromJsonAsync<ElectionView>($"api/elections/{Uri.EscapeDataString(this.Slug)}");
+        }
+        catch (HttpRequestException)
+        {
+            this.notFound = true;
+            return;
+        }
+
+        _ = this.PollAsync();
+    }
+
+    // Near real time: ask for turnout every few seconds.
+    private async Task PollAsync()
+    {
+        using PeriodicTimer timer = new(TimeSpan.FromSeconds(5));
+        do
+        {
+            try
+            {
+                this.turnout = await this.Http.GetFromJsonAsync<TurnoutView>($"api/elections/{Uri.EscapeDataString(this.Slug)}/turnout", this.stop.Token);
+                await this.InvokeAsync(this.StateHasChanged);
+            }
+            catch (HttpRequestException)
+            {
+                // Try again on the next tick.
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+        while (await this.WaitAsync(timer));
+    }
+
+    private async Task<bool> WaitAsync(PeriodicTimer timer)
+    {
+        try
+        {
+            return await timer.WaitForNextTickAsync(this.stop.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    private static string StatusText(int status) => status switch
+    {
+        0 => "This vote has not opened yet.",
+        1 => "This vote is open.",
+        _ => "This vote is closed.",
+    };
+
+    private int Percent() => this.turnout is null || this.turnout.CodesIssued == 0 ? 0 : this.turnout.CodesUsed * 100 / this.turnout.CodesIssued;
+
+    public void Dispose()
+    {
+        this.stop.Cancel();
+        this.stop.Dispose();
+    }
+}
