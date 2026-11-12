@@ -1,0 +1,47 @@
+name: DNS for the landing page
+
+# Makes the records that point www.chisballot.org (and the bare chisballot.org)
+# at GitHub Pages. Run by hand; it only adds records that are missing and never
+# changes or removes anything. vote. and admin. are made by the tunnel
+# (cloudflared tunnel route dns), not here. The job waits for approval because it
+# uses the Cloudflare token.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  records:
+    name: Add the Pages records
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+    steps:
+      - name: Add missing records
+        run: |
+          set -eu
+          api="https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records"
+
+          add() {
+            type=$1; name=$2; content=$3
+            existing=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "$api?type=$type&name=$name&content=$content" | jq '.result | length')
+            if [ "$existing" -ne 0 ]; then
+              echo "present: $type $name $content"
+              return
+            fi
+            curl -fsS -X POST -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+              --data "{\"type\":\"$type\",\"name\":\"$name\",\"content\":\"$content\",\"ttl\":1,\"proxied\":false}" \
+              "$api" | jq -r '"added: " + .result.type + " " + .result.name + " " + .result.content'
+          }
+
+          add CNAME www.chisballot.org glensouza.github.io
+          for ip in 185.199.108.153 185.199.109.153 185.199.110.153 185.199.111.153; do
+            add A chisballot.org "$ip"
+          done
+          for ip in 2606:50c0:8000::153 2606:50c0:8001::153 2606:50c0:8002::153 2606:50c0:8003::153; do
+            add AAAA chisballot.org "$ip"
+          done
