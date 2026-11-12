@@ -24,7 +24,7 @@ name, the slip's code or a time.
 |---|---|
 | www.chisballot.org | Landing page (GitHub Pages). `chisballot.org` redirects here |
 | vote.chisballot.org | Voting site. A voter's ballot is `/v/{slug}#{code}`, an election's page is `/e/{slug}`, its audit page is `/audit/{slug}` |
-| admin.chisballot.org | Admin site, sign-in only |
+| admin.chisballot.org | Admin site, invited admins with a passkey or authenticator app only |
 
 ## Documentation
 
@@ -84,6 +84,16 @@ lists each part and its address, and the `migrator` log lists the practice
 slips as links you can open. The admin site signs you in as a local
 developer; that shortcut exists only in debug builds and a CI check keeps it
 out of release builds.
+
+To try the real sign-in locally, make an admin and start with the shortcut off:
+
+```
+DatabaseConnectionString=x IdentityDatabasePath=.local/identity.db PublicUrl=http://localhost:5004   dotnet run --project src/ChisBallot.Admin --no-launch-profile -- create-admin you@example.com
+CHISBALLOT_REAL_SIGNIN=1 dotnet run --project src/ChisBallot.AppHost
+```
+
+Open the link it prints, choose a password, sign in, then add a passkey or an
+authenticator app; the admin pages stay closed until you do.
 
 ## Run the tests
 

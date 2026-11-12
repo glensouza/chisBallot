@@ -2,8 +2,20 @@
 
 <header class="chis-header">
     <strong>chisBallot admin</strong>
-    &nbsp;|&nbsp;
-    <a href="/logout" style="color: #fff">Sign out</a>
+    <AuthorizeView>
+        <Authorized>
+            &nbsp;|&nbsp;
+            <a href="/" style="color: #fff">Votes</a>
+            &nbsp;|&nbsp;
+            <a href="Account/Manage" style="color: #fff">@context.User.Identity?.Name</a>
+            &nbsp;|&nbsp;
+            <form action="Account/Logout" method="post" style="display: inline">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="link-button" style="color: #fff">Sign out</button>
+            </form>
+        </Authorized>
+    </AuthorizeView>
 </header>
 
 <main>
