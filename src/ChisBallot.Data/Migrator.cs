@@ -36,8 +36,11 @@ public sealed partial class Migrator(string connectionString, ILogger logger)
             BEGIN
                 EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
                 EXEC sp_configure 'contained database authentication', 1; RECONFIGURE;
-                DECLARE @sql nvarchar(max) = N'ALTER DATABASE ' + QUOTENAME(DB_NAME()) + N' SET CONTAINMENT = PARTIAL';
-                EXEC (@sql);
+                IF (SELECT containment FROM sys.databases WHERE name = DB_NAME()) = 0
+                BEGIN
+                    DECLARE @sql nvarchar(max) = N'ALTER DATABASE ' + QUOTENAME(DB_NAME()) + N' SET CONTAINMENT = PARTIAL WITH ROLLBACK IMMEDIATE';
+                    EXEC (@sql);
+                END
             END
             """, cancellationToken);
 

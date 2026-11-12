@@ -1,6 +1,13 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/ChisBallot.Admin.Api/ChisBallot.Admin.Api.csproj" />
+    <Project Path="src/ChisBallot.Admin/ChisBallot.Admin.csproj" />
+    <Project Path="src/ChisBallot.AppHost/ChisBallot.AppHost.csproj" />
+    <Project Path="src/ChisBallot.Contracts/ChisBallot.Contracts.csproj" />
     <Project Path="src/ChisBallot.Data/ChisBallot.Data.csproj" />
+    <Project Path="src/ChisBallot.Migrator/ChisBallot.Migrator.csproj" />
+    <Project Path="src/ChisBallot.Vote.Api/ChisBallot.Vote.Api.csproj" />
+    <Project Path="src/ChisBallot.Vote/ChisBallot.Vote.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ChisBallot.Tests/ChisBallot.Tests.csproj" />

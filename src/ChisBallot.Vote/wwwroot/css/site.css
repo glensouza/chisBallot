@@ -1,0 +1,80 @@
+main {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 3rem;
+}
+
+.demo-banner {
+    background: #b45309;
+    color: #fff;
+    font-weight: 700;
+    text-align: center;
+    padding: 0.5rem;
+    border-radius: var(--chis-radius);
+    margin-bottom: 1rem;
+}
+
+.contest {
+    margin: 1.25rem 0;
+}
+
+.contest legend {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--chis-blue);
+}
+
+.contest .hint {
+    color: var(--chis-gray-dark);
+    margin: 0.25rem 0 0.5rem;
+}
+
+.choice {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    margin: 0.4rem 0;
+    background: var(--chis-tint);
+    border-radius: var(--chis-radius);
+    min-height: 2.75rem;
+}
+
+.choice input[type="checkbox"],
+.choice input[type="radio"] {
+    width: 1.4rem;
+    height: 1.4rem;
+}
+
+.text-input {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 1.1rem;
+    padding: 0.7rem;
+    border: 1px solid var(--chis-silver);
+    border-radius: var(--chis-radius);
+}
+
+.receipt {
+    font-family: "Courier New", monospace;
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.error {
+    color: #b91c1c;
+    font-weight: 600;
+}
+
+.meter {
+    height: 1rem;
+    background: var(--chis-silver);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.meter > div {
+    height: 100%;
+    background: var(--chis-blue);
+}

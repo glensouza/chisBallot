@@ -1,0 +1,15 @@
+{
+  "version": "2.0",
+  "logging": {
+    "logLevel": {
+      "default": "Warning",
+      "Host.Results": "Warning",
+      "Function": "Warning"
+    }
+  },
+  "extensions": {
+    "http": {
+      "routePrefix": "api"
+    }
+  }
+}

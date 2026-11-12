@@ -23,7 +23,7 @@ name, the slip's code or a time.
 | Address | What it is |
 |---|---|
 | www.chisballot.org | Landing page (GitHub Pages). `chisballot.org` redirects here |
-| vote.chisballot.org | Voting site. A voter's ballot is `/v/#{code}`, an election's page is `/e/{slug}`, its audit page is `/audit/{slug}` |
+| vote.chisballot.org | Voting site. A voter's ballot is `/v/{slug}#{code}`, an election's page is `/e/{slug}`, its audit page is `/audit/{slug}` |
 | admin.chisballot.org | Admin site, sign-in only |
 
 ## Documentation
@@ -45,14 +45,39 @@ name, the slip's code or a time.
 
 | Path | Contents |
 |---|---|
+| `src/ChisBallot.Vote` | Voting site (Blazor WebAssembly) |
+| `src/ChisBallot.Vote.Api` | Voting API (Azure Functions): a ballot, turnout, cast a ballot. No admin routes |
+| `src/ChisBallot.Admin` | Admin site (Blazor WebAssembly), every route needs the admin role |
+| `src/ChisBallot.Admin.Api` | Admin API (Azure Functions), checks the admin role on every call |
 | `src/ChisBallot.Data` | Database schema scripts, the cast-ballot call, code generation |
+| `src/ChisBallot.Contracts` | Shared request and response types, safe for the browser |
+| `src/ChisBallot.Migrator` | Applies the database scripts and creates the two database users |
+| `src/ChisBallot.AppHost` | Runs everything on a laptop with one command |
 | `tests/ChisBallot.Tests` | Tests that run against a real SQL Server |
 | `infra/` | Terraform for Azure and Cloudflare |
 | `site/` | The landing page |
 | `docs/` | Design and audit documentation |
 | `.github/workflows/` | Build, test, deploy and infrastructure workflows |
 
-The voting site, admin site and their APIs are not in the repository yet.
+Not built yet: the audit page, results, demo mode, rate limiting of code
+guesses and the Cloudflare bot check, and the admin screens for creating and
+running an election.
+
+## Run it on your computer
+
+You need the .NET 10 SDK, Docker, and the Azure Functions Core Tools (`func`).
+
+```
+dotnet run --project src/ChisBallot.AppHost
+```
+
+This starts SQL Server in a container, applies the database scripts, creates
+the two database users and a practice election with eight slips, then starts
+both APIs and both sites. The Aspire dashboard (address printed on start)
+lists each part and its address, and the `migrator` log lists the practice
+slips as links you can open. The admin site signs you in as a local
+developer; that shortcut exists only in debug builds and a CI check keeps it
+out of release builds.
 
 ## Run the tests
 

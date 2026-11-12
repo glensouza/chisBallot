@@ -198,7 +198,7 @@ live results on only for votes where that does not matter.
 |---|---|
 | www.chisballot.org | Landing page on GitHub Pages. `chisballot.org` redirects here |
 | vote.chisballot.org | Voting site. The root says a slip's QR code is needed to vote |
-| vote.chisballot.org/v/#{code} | A voter's ballot. The code is in the URL fragment, which the browser never sends to a server, so it cannot reach request logs, the CDN or a referrer header |
+| vote.chisballot.org/v/{slug}#{code} | A voter's ballot. The slug says which election the slip is for and is not secret. The code is in the URL fragment, which the browser never sends to a server, so it cannot reach request logs, the CDN or a referrer header |
 | vote.chisballot.org/e/{slug} | Election page: live turnout, live results if enabled, full results once Closed |
 | vote.chisballot.org/audit/{slug} | Audit page: audit numbers, receipt list, every anonymous ballot, in-browser recount and the deployed commit. See `docs/audit-page.md` |
 | admin.chisballot.org | Admin site |

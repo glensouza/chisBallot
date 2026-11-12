@@ -1,0 +1,69 @@
+@page "/"
+@inject HttpClient Http
+
+<PageTitle>chisBallot admin</PageTitle>
+
+<h1>Elections</h1>
+
+@if (this.error is not null)
+{
+    <p class="error">@this.error</p>
+}
+else if (this.elections is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <p>Signed in as <strong>@this.me?.Name</strong>.</p>
+
+    @if (this.elections.Count == 0)
+    {
+        <div class="chis-card"><p>There are no elections yet.</p></div>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Address</th><th>Status</th><th>Slips</th></tr>
+            </thead>
+            <tbody>
+                @foreach (ElectionSummary election in this.elections)
+                {
+                    <tr>
+                        <td>@election.Name @(election.IsDemo ? "(demo)" : string.Empty)</td>
+                        <td>/e/@election.Slug</td>
+                        <td><span class="badge">@StatusText(election.Status)</span></td>
+                        <td>@election.CodesIssued</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private AdminIdentity? me;
+    private IReadOnlyList<ElectionSummary>? elections;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            this.me = await this.Http.GetFromJsonAsync<AdminIdentity>("api/me");
+            this.elections = await this.Http.GetFromJsonAsync<List<ElectionSummary>>("api/elections");
+        }
+        catch (HttpRequestException)
+        {
+            this.error = "You are not signed in as an admin, or the admin service is not reachable.";
+        }
+    }
+
+    private static string StatusText(int status) => status switch
+    {
+        0 => "Draft",
+        1 => "Open",
+        _ => "Closed",
+    };
+}

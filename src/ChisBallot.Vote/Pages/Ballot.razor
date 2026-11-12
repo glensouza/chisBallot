@@ -1,0 +1,243 @@
+@page "/v/{Slug}"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Your ballot</PageTitle>
+
+@if (this.loadError is not null)
+{
+    <div class="chis-card"><p class="error">@this.loadError</p></div>
+}
+else if (this.election is null)
+{
+    <p>Loading your ballot…</p>
+}
+else if (this.receipt is not null)
+{
+    <div class="chis-card">
+        <h1>Thank you</h1>
+        <p>Your vote was recorded. Write down or take a picture of this receipt code. After the vote closes you can use it to confirm your ballot was counted.</p>
+        <p class="receipt">@this.receipt</p>
+    </div>
+}
+else
+{
+    @if (this.election.IsDemo)
+    {
+        <div class="demo-banner">DEMO: not a real vote</div>
+    }
+
+    <h1>@this.election.Name</h1>
+
+    @if (this.election.Status != 1)
+    {
+        <div class="chis-card"><p>This vote is not open.</p></div>
+    }
+    else
+    {
+        @if (!this.codeFromLink)
+        {
+            <label for="code">Type the code from your slip</label>
+            <input id="code" class="text-input" autocomplete="off" autocapitalize="characters" @bind="this.code" @bind:event="oninput" />
+        }
+
+        @foreach (ContestView contest in this.contests)
+        {
+            <fieldset class="contest">
+                <legend>@contest.Title</legend>
+                <p class="hint">@Hint(contest)</p>
+
+                @foreach (ChoiceView choice in contest.Choices)
+                {
+                    bool selected = this.IsSelected(contest.Id, choice.Id);
+                    <label class="choice">
+                        <input type="@(contest.MaxSelections == 1 ? "radio" : "checkbox")"
+                               name="@contest.Id"
+                               checked="@selected"
+                               disabled="@(!selected && this.IsFull(contest))"
+                               @onchange="e => this.Toggle(contest, choice.Id, IsOn(e))" />
+                        <span>@choice.Label</span>
+                    </label>
+                }
+
+                @if (contest.AllowWriteIn)
+                {
+                    <label class="choice">
+                        <span>Write in:</span>
+                        <input class="text-input"
+                               maxlength="60"
+                               placeholder="A name"
+                               value="@this.GetWriteIn(contest.Id)"
+                               @onchange="e => this.SetWriteIn(contest, e.Value?.ToString() ?? string.Empty)" />
+                    </label>
+                }
+            </fieldset>
+        }
+
+        @if (this.error is not null)
+        {
+            <p class="error">@this.error</p>
+        }
+
+        <button class="chis-button" disabled="@this.busy" @onclick="this.SubmitAsync">Submit my vote</button>
+    }
+}
+
+@code {
+    [Parameter]
+    public string Slug { get; set; } = string.Empty;
+
+    private ElectionView? election;
+    private List<ContestView> contests = [];
+    private readonly Dictionary<Guid, HashSet<Guid>> picks = [];
+    private readonly Dictionary<Guid, string> writeIns = [];
+    private string code = string.Empty;
+    private bool codeFromLink;
+    private string? loadError;
+    private string? error;
+    private string? receipt;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The code lives in the part of the address after '#', which the
+        // browser never sends to any server. Read it, then take it out of the
+        // address bar so it does not stay in the history.
+        string fragment = new Uri(this.Navigation.Uri).Fragment.TrimStart('#');
+        if (fragment.Length != 0)
+        {
+            this.code = fragment;
+            this.codeFromLink = true;
+            this.Navigation.NavigateTo($"/v/{this.Slug}", replace: true);
+        }
+
+        try
+        {
+            this.election = await this.Http.GetFromJsonAsync<ElectionView>($"api/elections/{Uri.EscapeDataString(this.Slug)}");
+        }
+        catch (HttpRequestException)
+        {
+            this.loadError = "That vote could not be found.";
+            return;
+        }
+
+        if (this.election is null)
+        {
+            this.loadError = "That vote could not be found.";
+            return;
+        }
+
+        // Each voter sees questions and options in their own random order. The
+        // order is chosen here, in the browser, and is never sent anywhere.
+        List<ContestView> shown = [.. this.election.Contests];
+        if (this.election.ShuffleContests)
+        {
+            Shuffler.Shuffle(shown);
+        }
+
+        this.contests = [.. shown.Select(c => this.election.ShuffleChoices ? c with { Choices = Shuffler.Shuffled(c.Choices) } : c)];
+    }
+
+    // A checkbox reports true or false. A radio button only fires when it
+    // becomes selected, and reports its value text instead of a bool.
+    private static bool IsOn(ChangeEventArgs e) => e.Value is not bool on || on;
+
+    private static string Hint(ContestView contest)
+    {
+        return contest.MaxSelections == 1 ? "Choose one." : $"Choose up to {contest.MaxSelections}.";
+    }
+
+    private int Count(ContestView contest)
+    {
+        int count = this.picks.TryGetValue(contest.Id, out HashSet<Guid>? chosen) ? chosen.Count : 0;
+        return count + (string.IsNullOrWhiteSpace(this.GetWriteIn(contest.Id)) ? 0 : 1);
+    }
+
+    private bool IsFull(ContestView contest) => contest.MaxSelections > 1 && this.Count(contest) >= contest.MaxSelections;
+
+    private bool IsSelected(Guid contestId, Guid choiceId) => this.picks.TryGetValue(contestId, out HashSet<Guid>? chosen) && chosen.Contains(choiceId);
+
+    private string GetWriteIn(Guid contestId) => this.writeIns.TryGetValue(contestId, out string? name) ? name : string.Empty;
+
+    private void Toggle(ContestView contest, Guid choiceId, bool on)
+    {
+        if (!this.picks.TryGetValue(contest.Id, out HashSet<Guid>? chosen))
+        {
+            chosen = [];
+            this.picks[contest.Id] = chosen;
+        }
+
+        if (!on)
+        {
+            chosen.Remove(choiceId);
+            return;
+        }
+
+        if (contest.MaxSelections == 1)
+        {
+            chosen.Clear();
+            this.writeIns.Remove(contest.Id);
+        }
+
+        if (!this.IsFull(contest))
+        {
+            chosen.Add(choiceId);
+        }
+    }
+
+    private void SetWriteIn(ContestView contest, string name)
+    {
+        if (contest.MaxSelections == 1 && !string.IsNullOrWhiteSpace(name) && this.picks.TryGetValue(contest.Id, out HashSet<Guid>? chosen))
+        {
+            chosen.Clear();
+        }
+
+        this.writeIns[contest.Id] = name;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (this.election is null)
+        {
+            return;
+        }
+
+        this.error = null;
+        if (string.IsNullOrWhiteSpace(this.code))
+        {
+            this.error = "Type the code from your slip first.";
+            return;
+        }
+
+        this.busy = true;
+        try
+        {
+            CastRequest request = new(
+                this.election.Id,
+                this.code,
+                [.. this.picks.SelectMany(p => p.Value.Select(choice => new SelectionDto(p.Key, choice)))],
+                [.. this.writeIns.Where(w => !string.IsNullOrWhiteSpace(w.Value)).Select(w => new WriteInDto(w.Key, w.Value))]);
+
+            using HttpResponseMessage response = await this.Http.PostAsJsonAsync("api/cast", request);
+            CastResponse? result = await response.Content.ReadFromJsonAsync<CastResponse>();
+
+            if (response.IsSuccessStatusCode && result?.ReceiptCode is not null)
+            {
+                this.receipt = result.ReceiptCode;
+                this.code = string.Empty;
+            }
+            else
+            {
+                this.error = result?.Error ?? "Your vote could not be recorded.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            this.error = "Could not reach the voting site. Check your connection and try again.";
+        }
+        finally
+        {
+            this.busy = false;
+        }
+    }
+}
