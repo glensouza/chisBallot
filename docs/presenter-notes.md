@@ -177,6 +177,12 @@ the one vote that slip allows."
 vote work, and the number created is fixed and published before voting
 starts. An extra slip would have a code the site does not recognise."
 
+**If asked "Who makes the slips, and could the admin look up a code?"** "The
+board chair makes them once, on the admin site, by saying how many are needed.
+The site shows the codes on one printable sheet, one time, and keeps only a
+scrambled form of each. Nobody, including me, can look up a code or print a
+second batch afterwards. If the printed sheet is lost, we make the vote again."
+
 ---
 
 ## Slide 7: Anyone can check the count (2 minutes)
@@ -291,7 +297,8 @@ anything where one person's choice matters."
 
 **If asked "Who is responsible for it?"** "The setup lives in a public
 repository, and setting up a vote happens on a separate, sign-in-only admin
-site. Only people we invite can create a vote or print slips."
+site. Only people we invite can create a vote or make its slips, and slips
+can be made only once per vote."
 
 **If asked "Does it use district accounts or student data?"** "Neither."
 
@@ -322,6 +329,7 @@ site. Only people we invite can create a vote or print slips."
 | What if someone votes and then says the site got it wrong? | Their receipt lets them confirm a ballot was counted. If a member disputes the outcome, the board can order a paper re-vote. |
 | Can a member vote from home? | No. Slips are only handed out in the room, after roster sign-off. |
 | Is it accessible? | The ballot is a plain web page that works with phone screen readers and large text. Anyone who prefers can vote on paper. |
+| Can slips be reprinted? | No. The site keeps only a scrambled form of each code, so a lost sheet means making the vote again. |
 | Who can set up a vote? | Only invited admins, on a separate sign-in-only site. The public voting site has no admin functions. |
 | Who has reviewed it? | The code is public so anyone can. Offer the union the chance to name a reviewer before the pilot. |
 | What happens to old votes? | Results, receipt lists and audit numbers stay published. Unused codes are deleted when a vote closes. |
