@@ -1,0 +1,7 @@
+[Unit]
+Description=Copy chisBallot backups to the Synology NAS
+RequiresMountsFor=/mnt/pve/synology-backups
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/chisballot-backup-sync

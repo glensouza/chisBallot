@@ -1,0 +1,98 @@
+# Running chisBallot on a server
+
+Everything the server needs is in this folder, so anyone can read exactly what
+runs and rebuild the machine. The sites run on one Debian container (an LXC on a
+Proxmox host) in a home lab, behind a Cloudflare tunnel. No ports are open to
+the internet.
+
+```
+Internet -> Cloudflare (HTTPS, DNS) -> tunnel (outbound from the container)
+   vote.chisballot.org   -> voting site   127.0.0.1:5101
+   admin.chisballot.org  -> admin site    127.0.0.1:5102
+PostgreSQL 17 on the same machine, listening on localhost only
+www.chisballot.org      -> GitHub Pages (the landing page)
+```
+
+## On the container (`lxc/`)
+
+| File | What it is |
+|---|---|
+| `setup.sh` | Makes the users, the database and owner role, the passwords (kept only in `/etc/chisballot`, root-readable), each program's settings file, and installs everything below. Safe to re-run; never overwrites the passwords. |
+| `chisballot-vote.service`, `chisballot-admin.service` | The two sites, each as its own unprivileged user, sandboxed by systemd. The voting site writes nothing to disk. The admin site writes only its accounts file and sign-in keys. |
+| `chisballot-deploy` | Puts a build into service: copies it, applies database changes, switches the `current` links, restarts, checks both sites answer, and goes back if they do not. The production runner may run this as root and nothing else (one sudo rule, made by `setup.sh`). |
+| `chisballot-backup`, `.service`, `.timer` | Nightly encrypted backup of the ballot database and the admin accounts file, to an outbox folder. |
+| `cloudflared.service` | The tunnel, as its own unprivileged user. |
+
+The tunnel's settings (`/etc/cloudflared/config.yml`) and its credentials are
+made once with `cloudflared tunnel create` and are not in this repository.
+
+### The two runners
+
+A GitHub Actions runner for this repository runs on the container as two users:
+
+- `runner-prod` (label `prod`) is used only by the deploy workflow, which needs
+  a reviewer's approval (the `production` environment) and runs only for `main`.
+  It is the only user with the sudo rule for `chisballot-deploy`.
+- `runner-pr` (label `pr`) is for pull-request previews. It has no sudo, runs
+  Docker in rootless mode, and a firewall rule stops everything it starts from
+  reaching any private network (see the firewall note below).
+
+## On the Proxmox host (`host/`)
+
+The container has no network path to the NAS. It writes its encrypted backups to
+a folder on the host; the host copies them to the NAS.
+
+| File | What it is |
+|---|---|
+| `chisballot-backup-sync`, `.service`, `.timer` | Every 30 minutes, copies new `*.age` and `*.sha256` files from the container's outbox to the NAS. It only adds files, copies no links, and removes NAS copies older than 90 days. |
+
+One-time settings in `/etc/pve/lxc/<id>.conf` for the container:
+
+```
+mp0: /srv/chisballot-backup/outbox,mp=/var/backups/chisballot,backup=0
+lxc.cgroup2.devices.allow: c 10:200 rwm
+lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+lxc.idmap: u 0 100000 196608
+lxc.idmap: g 0 100000 196608
+```
+
+(`/etc/subuid` and `/etc/subgid` on the host also allow `root:100000:196608`.)
+The tun device and the wider ID map are what rootless Docker needs inside an
+unprivileged container. The outbox folder is owned by the container's `postgres`
+user as the host sees it.
+
+The whole container is also backed up weekly by Proxmox to the NAS, with
+`tmpdir: /var/tmp/vzdump` in `/etc/vzdump.conf` (an unprivileged container
+cannot be archived from a staging folder on the NAS itself).
+
+## Firewall note (inside the container)
+
+`/etc/nftables.conf` has a table that applies to the `runner-pr` user only:
+internet and the router's DNS allowed, every private address range rejected.
+Pull-request code, which runs as that user, therefore cannot reach the Proxmox
+host, the router, the NAS or anything else on the home network, and cannot reach
+this machine's PostgreSQL either. The network itself is also separated by a VLAN
+with its own firewall rules.
+
+## Deploying
+
+Merging to `main` starts the `Deploy` workflow. It builds on the `prod` runner,
+waits for approval in the `production` environment, then runs
+`chisballot-deploy`. Nothing deploys without that approval.
+
+The first admin is made on the server:
+
+```
+cd /opt/chisballot/admin/current
+sudo -u chisballot-admin env $(cat /etc/chisballot/admin.env | xargs) dotnet ChisBallot.Admin.dll create-admin you@example.org
+```
+
+It prints a one-time link. Open it, choose a password, then add a passkey or an
+authenticator app.
+
+## Backups
+
+The backup is encrypted to a public key before it is written, so the files in
+the outbox, on the host and on the NAS cannot be read without the private key,
+which is not kept on the server. Restore commands are at the top of
+`lxc/chisballot-backup`.

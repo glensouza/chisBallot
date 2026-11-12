@@ -9,7 +9,7 @@ Please do. Nothing on this page should be taken on trust.
 Entries below that name a table, procedure or grant can be checked today. The
 rest are the specification the sites must meet, and as each piece lands its
 entry gets the real file and test name. A measure with no test is a gap worth
-reporting. The infrastructure entries can be checked in `infra/`.
+reporting. The server entries can be checked in `ops/`.
 
 ## Checked today
 
@@ -76,7 +76,7 @@ Report problems as a GitHub issue on this repository.
 | `ballot.voting_codes` and `ballot.ballots` share no column except the election id. | Schema migration |
 | Casting a ballot is one transaction: mark the code used, insert the ballot. Nothing records which code produced which ballot. | The cast-ballot code and its tests |
 | If an election randomizes question and option order, the shuffle runs in the voter's browser. The order shown is never sent to the server, stored or logged, and is not derived from the voting code. Ballots store selections with no order. | The ballot page script (shuffle uses `crypto.getRandomValues`); the cast request body carries no order; schema has no order column |
-| The voter never signs in and the voting site has no accounts, so there is no identity to attach. | Voting site has no authentication code; `app.yml` and `infra/main.tf` configure no auth for it |
+| The voter never signs in and the voting site has no accounts, so there is no identity to attach. | Voting site has no authentication code; `ops/lxc/setup.sh` gives it a database role that can only read an election's setup and call the cast, turnout and results functions |
 | Codes are distributed by draw: the chair signs a member off on the roster, the member picks any folded slip from a pile. The roster says who voted; the slips say nothing about who holds them. | Procedure, not code. The chair must keep the roster off the system |
 
 Tests that should prove this (planned): a ballot row contains nothing that
@@ -90,7 +90,7 @@ refused.
 | Only a hash of each code is stored, so the database alone cannot reproduce a slip. | Code generation and the `ballot.voting_codes.code_hash` column |
 | Codes come from a cryptographic random number generator and are long enough that guessing is infeasible. The length is stated here once the code exists. | Code generation |
 | A code works once and only in its own election. | The single `UPDATE ... WHERE Used = 0` joined to an Open election in `docs/data-model.md`, and its tests |
-| Wrong guesses are rate-limited, and the ballot page is behind a Cloudflare Turnstile bot check. | Rate-limit code in the vote API; `cloudflare_turnstile_widget` in `infra/dns.tf` |
+| Wrong guesses are rate-limited, and the ballot page is behind a Cloudflare Turnstile bot check. | **Not built yet.** |
 | Unused codes are deleted when an election closes. | `ElectionAdmin.CloseAsync`, `ballot.close_election` |
 
 ## 3. The code never leaks through the network or the logs
@@ -101,7 +101,7 @@ refused.
 | The page sends the code only in the body of a POST to the site's own API. Never in a URL path or query string. | Client and API code; search for any use of the code in a URL |
 | No code, no code hash alongside anything else, and no ballot contents are logged. The cast-ballot request does not log IP addresses. | Serilog configuration and every log call on the cast path |
 | No analytics, tracking scripts or third-party fonts on the ballot page. The only third-party script is Turnstile, which sees the page visit but not the fragment. | The page's HTML and script tags |
-| This repository configures no Application Insights or SQL auditing, so no extra service records requests or queries. | `infra/`: search for `insights`, `audit`, `log_analytics` |
+| This repository configures no analytics, application-monitoring or request-logging service, and the sites' own request logging is switched off. | `ops/lxc/*.service`, `src/ChisBallot.Vote.Server/Program.cs` (search for `MinimumLevel`) |
 | Traffic is encrypted: Cloudflare terminates HTTPS in front of every site, and the database accepts connections only from the same machine. | The server setup (not written yet), so this is not yet checkable |
 
 ## 4. Results are not shown early
@@ -132,8 +132,8 @@ refused.
 |---|---|
 | The voting site contains no admin pages and exposes no admin endpoints. | `ChisBallot.Vote` and `ChisBallot.Vote.Server` contain no admin code |
 | Admin is a separate site, `admin.chisballot.org`, where every route and API call requires a signed-in, invited admin. | The Admin policy in `ChisBallot.Admin/AdminAuth.cs` (invited-admin sign-in is not built yet) |
-| The two sites use two database users with different rights. The admin user cannot read or change the ballots of an open election. | `chisballot_vote` and `chisballot_admin` grants in the migration; comments in `infra/main.tf` |
-| Everything runs from this public repository. Infrastructure is declared in `infra/` and deployed by the workflows in `.github/workflows/`, not set up by hand. | `infra/`, `.github/workflows/` and the Actions run history |
+| The two sites use two database users with different rights. The admin user cannot read or change the ballots of an open election. | `chisballot_vote` and `chisballot_admin` grants in the migration; the settings files `ops/lxc/setup.sh` writes |
+| Everything runs from this public repository. The server's setup is in `ops/` and deployment is by `.github/workflows/deploy.yml` after a reviewer approves it. The parts not in the repository are the tunnel's credentials, the passwords `setup.sh` makes on the server, and the Proxmox host's own settings (documented in `ops/README.md`). | `ops/`, `.github/workflows/` and the Actions run history |
 
 ## 7. The demo cannot touch a real vote
 
@@ -155,16 +155,23 @@ An honest audit needs the weak points too.
 - **Live results make timing visible.** If a tally changes right after a
   known member is signed off, that member's choice is guessable. The chair
   should turn live results on only for votes where this does not matter.
-- **The database administrator can see everything stored.** The server admin
-  login exists and can read the tables. Neither it nor the two app users
-  record who voted, but whoever holds it can read all data. Keep its use and
-  the Terraform state (where the passwords live) limited to the deploy
-  identity.
-- **Database logs and backups.** Azure keeps backups and a transaction log on
-  its side. In principle they hold when each ballot row was written, and the
-  code-used update and the ballot insert share one transaction. This
-  repository cannot turn that off. Nothing stored in the tables ties a code
-  to a ballot, but that internal log is outside this repository's control.
+- **Whoever has root on the server can see everything stored.** The server
+  is one container in a home lab run by one person. Root on it (and root on
+  the Proxmox host under it) can read the database files and the passwords in
+  `/etc/chisballot`. Neither database role records who voted, but whoever
+  holds root can read all data. This is the same trust placed in any host,
+  moved from a cloud provider to a person; the code and the setup are public so
+  the claim can be checked, and a recount from the published ballots does not
+  depend on trusting the server.
+- **Backups.** The nightly backup of the database and the admin accounts is
+  encrypted to a public key before it is written, and the private key is not on
+  the server. The weekly Proxmox backup of the whole container, kept on the NAS,
+  is not encrypted: it contains the database files and the passwords. Anyone
+  who can read that NAS folder can read it. The database also keeps its own
+  write-ahead log; in principle it holds when each ballot row was written, and
+  the code-used update and the ballot insert share one transaction. Nothing
+  stored in the tables ties a code to a ballot, but that internal log is
+  outside this repository's control.
 - **Write-ins can mark a ballot.** In a contest that allows write-ins, a
   voter could type something distinctive to prove how they voted, and the
   full ballot list is public. Names are length- and character-limited and
