@@ -1,5 +1,7 @@
 @page "/elections/{Id:guid}"
-@inject HttpClient Http
+@attribute [Authorize(Policy = AdminAuth.PolicyName)]
+@inject AdminViews Views
+@inject ElectionAdmin AdminService
 @inject IConfiguration Configuration
 @inject IJSRuntime Js
 
@@ -171,22 +173,21 @@ else
         this.error = null;
         try
         {
-            using HttpResponseMessage response = await this.Http.PostAsJsonAsync($"api/elections/{this.Id}/slips", new IssueSlipsRequest(this.slipCount));
-            IssueSlipsResponse? result = await response.Content.ReadFromJsonAsync<IssueSlipsResponse>();
-            if (response.IsSuccessStatusCode && result?.Codes is not null)
+            IReadOnlyList<string>? codes = await this.AdminService.IssueSlipsAsync(this.Id, this.slipCount);
+            if (codes is not null)
             {
-                this.slips = result.Codes;
+                this.slips = codes;
             }
             else
             {
-                this.error = result?.Error ?? "The slips could not be made.";
+                this.error = $"Slips can be made once, for a draft that has none, between 1 and {SlipLimits.Max}.";
             }
 
             await this.LoadAsync();
         }
-        catch (HttpRequestException)
+        catch (Npgsql.NpgsqlException)
         {
-            this.error = "Could not reach the admin service.";
+            this.error = "The database could not be reached.";
         }
         finally
         {
@@ -200,39 +201,50 @@ else
     {
         try
         {
-            this.view = await this.Http.GetFromJsonAsync<ElectionAdminView>($"api/elections/{this.Id}");
+            this.view = await this.Views.LoadAsync(this.Id);
+            if (this.view is null)
+            {
+                this.error = "That vote could not be found.";
+            }
         }
-        catch (HttpRequestException)
+        catch (Npgsql.NpgsqlException)
         {
-            this.error = "That vote could not be loaded.";
+            this.error = "The database could not be reached.";
         }
     }
 
-    private Task OpenAsync() => this.ActAsync("open");
-
-    private async Task CloseAsync()
-    {
-        await this.ActAsync("close");
-        this.confirmClose = false;
-    }
-
-    private async Task ActAsync(string action)
+    private async Task OpenAsync()
     {
         this.busy = true;
         this.error = null;
         try
         {
-            using HttpResponseMessage response = await this.Http.PostAsync($"api/elections/{this.Id}/{action}", content: null);
-            if (!response.IsSuccessStatusCode)
+            if (!await this.AdminService.OpenAsync(this.Id))
             {
-                this.error = (await response.Content.ReadAsStringAsync()).Trim('"');
+                this.error = "Only a draft that has slips can be opened.";
             }
 
             await this.LoadAsync();
         }
-        catch (HttpRequestException)
+        finally
         {
-            this.error = "Could not reach the admin service.";
+            this.busy = false;
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        this.busy = true;
+        this.error = null;
+        try
+        {
+            if (!await this.AdminService.CloseAsync(this.Id))
+            {
+                this.error = "Only an open vote can be closed.";
+            }
+
+            this.confirmClose = false;
+            await this.LoadAsync();
         }
         finally
         {

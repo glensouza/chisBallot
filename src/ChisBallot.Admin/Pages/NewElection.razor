@@ -1,5 +1,6 @@
 @page "/new"
-@inject HttpClient Http
+@attribute [Authorize(Policy = AdminAuth.PolicyName)]
+@inject ElectionAdmin AdminService
 @inject NavigationManager Navigation
 
 <PageTitle>New vote</PageTitle>
@@ -145,20 +146,19 @@
         this.busy = true;
         try
         {
-            using HttpResponseMessage response = await this.Http.PostAsJsonAsync("api/elections", request);
-            CreateElectionResponse? result = await response.Content.ReadFromJsonAsync<CreateElectionResponse>();
-            if (response.IsSuccessStatusCode && result?.Id is Guid id)
+            CreateElectionResponse result = await this.AdminService.CreateAsync(request);
+            if (result.Id is Guid id)
             {
                 this.Navigation.NavigateTo($"/elections/{id}");
             }
             else
             {
-                this.error = result?.Error ?? "The vote could not be saved.";
+                this.error = result.Error ?? "The vote could not be saved.";
             }
         }
-        catch (HttpRequestException)
+        catch (Npgsql.NpgsqlException)
         {
-            this.error = "Could not reach the admin service.";
+            this.error = "The database could not be reached.";
         }
         finally
         {

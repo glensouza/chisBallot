@@ -15,7 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ChisBallot.Migrator\ChisBallot.Migrator.csproj" />
-    <ProjectReference Include="..\ChisBallot.Vote\ChisBallot.Vote.csproj" />
+    <ProjectReference Include="..\ChisBallot.Vote.Server\ChisBallot.Vote.Server.csproj" />
     <ProjectReference Include="..\ChisBallot.Admin\ChisBallot.Admin.csproj" />
   </ItemGroup>
 

@@ -36,7 +36,7 @@ sites.
 
 | Measure | Code | Test |
 |---|---|---|
-| A new election is checked twice, in the admin page and again in the admin API, before it reaches the database | `src/ChisBallot.Contracts/ElectionRequestValidator.cs`, `ElectionAdmin.CreateAsync` | `ElectionRequestValidatorTests`, `A_bad_request_or_a_used_address_is_refused_with_a_reason`, `A_failed_create_leaves_nothing_behind` |
+| A new election is checked twice, in the admin page and again in the data layer, before it reaches the database | `src/ChisBallot.Contracts/ElectionRequestValidator.cs`, `ElectionAdmin.CreateAsync` | `ElectionRequestValidatorTests`, `A_bad_request_or_a_used_address_is_refused_with_a_reason`, `A_failed_create_leaves_nothing_behind` |
 | A vote cannot open without slips, opens once, and closes once; nothing reopens a closed vote | `ElectionAdmin.OpenAsync`, `CloseAsync`, `tr_elections_lifecycle` | `An_election_with_slips_opens_once_and_then_closes_once`, `A_closed_election_is_final_and_settings_freeze_once_open` |
 | A tie that decides who wins is flagged and never broken; clear winners keep their seats | `src/ChisBallot.Contracts/ResultsCalculator.cs` | `ResultsCalculatorTests` (ten cases, including a level yes/no vote and a vote nobody voted in) |
 | The admin site shows results only after the database allows them, and the admin database user still cannot read ballots | `ResultsReader`, `ballot.get_results` | `Results_come_back_only_after_close_and_follow_the_tie_rule`, `The_admin_site_cannot_read_ballots_or_codes` |
@@ -47,19 +47,20 @@ sites.
 |---|---|---|
 | Codes are random (80 bits) and only their SHA-256 hash is stored; the plain codes are returned once and never logged | `ElectionAdmin.IssueSlipsAsync`, `VotingCode` | `Slips_are_made_once_and_only_their_hashes_are_stored` |
 | Slips can be made once, only for a draft, 1 to 500 at a time | `ElectionAdmin.IssueSlipsAsync` | `A_slip_count_out_of_range_is_refused`, `Slips_cannot_be_made_for_an_open_election` |
-| The response carrying the codes is marked `no-store`, and the QR images are drawn in the admin's browser, so no other service sees a code | `AdminFunctions.IssueSlips`, `SlipSheet.razor` | checked by hand with curl (header) |
+| The codes are shown on one page, once, and held only in that page's memory; the QR images are drawn by the admin site itself, so no other service sees a code | `ElectionDetail.razor`, `SlipSheet.razor` | checked by hand in a browser |
 
 ### The sites
 
 | Measure | Code | How to check |
 |---|---|---|
-| The voting API has no admin routes and no way to read results or ballots; it exposes a ballot, turnout and casting a ballot | `src/ChisBallot.Vote.Api/VoteFunctions.cs` | Read the file; `/api/me` and `/api/elections` return 404 on the voting API |
+| The voting site has no admin routes and no way to read results or ballots; it exposes a ballot, turnout and casting a ballot | `src/ChisBallot.Vote.Server/VoteEndpoints.cs` | Read the file; the only routes are `GET /api/elections/{slug}`, its `/turnout`, and `POST /api/cast` |
 | The ballot page reads the code from the address fragment, which the browser never sends, then removes it from the address bar; the code is sent only in the body of one POST | `src/ChisBallot.Vote/Pages/Ballot.razor` | Read `OnInitializedAsync` and `SubmitAsync` |
-| The ballot page sends no referrer, and the site loads no analytics or third-party scripts | `src/ChisBallot.Vote/wwwroot/index.html`, `staticwebapp.config.json` | Read the two files |
+| The ballot page sends no referrer, API answers are never cached, request logging is off, and the site loads no analytics or third-party scripts | `src/ChisBallot.Vote/wwwroot/index.html`, `src/ChisBallot.Vote.Server/SecurityHeaders.cs`, `Program.cs` | Read the files; response headers checked with curl |
 | Random question and option order is chosen in the browser with the cryptographic random generator and never sent | `src/ChisBallot.Vote/Shuffler.cs`, `Ballot.razor` | `CastRequest` in `ChisBallot.Contracts` has no order field |
-| Every admin route and API call requires the admin role, twice: by the site's route rules and again inside each admin function | `src/ChisBallot.Admin/wwwroot/staticwebapp.config.json`, `src/ChisBallot.Admin.Api/AdminPrincipal.cs` | Read both |
+| Every admin page requires the admin role, and until real sign-in exists nobody can satisfy it, so the site refuses everyone | `src/ChisBallot.Admin/AdminAuth.cs`, the `[Authorize]` line on each page | Read them |
+| The local-development sign-in exists only in Debug builds, and the build pipeline fails if it is found in a Release build | `src/ChisBallot.Admin/DevAdminHandler.cs`, `.github/workflows/app.yml` | The "Dev-only admin sign-in" step |
 | The local-development admin sign-in is compiled out of release builds, and CI fails if it is not | `#if DEBUG` in `AdminPrincipal.cs`; the "Dev-only admin sign-in" step in `.github/workflows/app.yml` | Read the step; it searches the release DLL |
-| The admin API connects as `chisballot_admin`, the voting API as `chisballot_vote` | `src/ChisBallot.AppHost/AppHost.cs` locally; `infra/main.tf` when deployed | Read both |
+| The admin site connects as `chisballot_admin`, the voting site as `chisballot_vote` | `src/ChisBallot.AppHost/AppHost.cs` locally; the server setup when deployed (not written yet) | Read them |
 
 Not covered yet: the audit page, demo mode, rate limiting, the bot check, and
 the revote shortcut.
@@ -90,7 +91,7 @@ refused.
 | Codes come from a cryptographic random number generator and are long enough that guessing is infeasible. The length is stated here once the code exists. | Code generation |
 | A code works once and only in its own election. | The single `UPDATE ... WHERE Used = 0` joined to an Open election in `docs/data-model.md`, and its tests |
 | Wrong guesses are rate-limited, and the ballot page is behind a Cloudflare Turnstile bot check. | Rate-limit code in the vote API; `cloudflare_turnstile_widget` in `infra/dns.tf` |
-| Unused codes are deleted when an election closes. | Close logic in the admin API |
+| Unused codes are deleted when an election closes. | `ElectionAdmin.CloseAsync`, `ballot.close_election` |
 
 ## 3. The code never leaks through the network or the logs
 
@@ -101,7 +102,7 @@ refused.
 | No code, no code hash alongside anything else, and no ballot contents are logged. The cast-ballot request does not log IP addresses. | Serilog configuration and every log call on the cast path |
 | No analytics, tracking scripts or third-party fonts on the ballot page. The only third-party script is Turnstile, which sees the page visit but not the fragment. | The page's HTML and script tags |
 | This repository configures no Application Insights or SQL auditing, so no extra service records requests or queries. | `infra/`: search for `insights`, `audit`, `log_analytics` |
-| Traffic is encrypted: HTTPS on every site, TLS 1.2 minimum on the database. | `infra/main.tf` (`minimum_tls_version`); Pages and Static Web Apps certificates |
+| Traffic is encrypted: Cloudflare terminates HTTPS in front of every site, and the database accepts connections only from the same machine. | The server setup (not written yet), so this is not yet checkable |
 
 ## 4. Results are not shown early
 
@@ -129,8 +130,8 @@ refused.
 
 | Measure | Where to check |
 |---|---|
-| The voting site contains no admin pages and exposes no admin endpoints. | `ChisBallot.Vote` and `ChisBallot.Vote.Api` contain no admin code |
-| Admin is a separate site, `admin.chisballot.org`, where every route and API call requires a signed-in, invited admin. | Static Web Apps route configuration in `ChisBallot.Admin` |
+| The voting site contains no admin pages and exposes no admin endpoints. | `ChisBallot.Vote` and `ChisBallot.Vote.Server` contain no admin code |
+| Admin is a separate site, `admin.chisballot.org`, where every route and API call requires a signed-in, invited admin. | The Admin policy in `ChisBallot.Admin/AdminAuth.cs` (invited-admin sign-in is not built yet) |
 | The two sites use two database users with different rights. The admin user cannot read or change the ballots of an open election. | `chisballot_vote` and `chisballot_admin` grants in the migration; comments in `infra/main.tf` |
 | Everything runs from this public repository. Infrastructure is declared in `infra/` and deployed by the workflows in `.github/workflows/`, not set up by hand. | `infra/`, `.github/workflows/` and the Actions run history |
 

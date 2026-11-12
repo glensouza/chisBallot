@@ -4,18 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- The websites, tests, migrator and local AppHost run on .NET 11. -->
+    <!-- Everything runs on .NET 11. -->
     <AppTargetFramework>net11.0</AppTargetFramework>
-
-    <!--
-      The two Functions APIs, and the libraries only they share, run inside
-      Azure Static Web Apps managed Functions, whose supported runtimes list
-      .NET 10 as the newest. When it lists .NET 11, change this to net11.0 and
-      set apiRuntime to dotnet-isolated:11.0 in both staticwebapp.config.json
-      files. Azure Functions needs the Azure.Functions.Sdk project SDK (1.0.1 or
-      later) and an explicit Microsoft.Azure.Functions.Worker reference to
-      target .NET 11, so the two API project files change too.
-    -->
-    <ApiTargetFramework>net10.0</ApiTargetFramework>
   </PropertyGroup>
 </Project>
