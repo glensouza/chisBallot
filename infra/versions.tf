@@ -33,6 +33,11 @@ terraform {
 #   CLOUDFLARE_API_TOKEN
 provider "azurerm" {
   features {}
+
+  # The deploy identity can act only inside its resource group, so it cannot
+  # register resource providers. Microsoft.Web, Microsoft.Sql and
+  # Microsoft.Storage are already registered on the subscription.
+  resource_provider_registrations = "none"
 }
 
 provider "azapi" {}
