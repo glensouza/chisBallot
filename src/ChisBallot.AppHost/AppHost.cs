@@ -40,10 +40,19 @@ ReferenceExpression ConnectionFor(string user, string password)
 vote.WithEnvironment("DatabaseConnectionString", ConnectionFor("chisballot_vote", VotePassword))
     .WaitForCompletion(migrator);
 
-builder.AddProject<Projects.ChisBallot_Admin>("admin")
+// Admin accounts live in a local file. By default a Debug build signs you in as
+// a local developer; set CHISBALLOT_REAL_SIGNIN=1 before starting to try the
+// real sign-in (create an admin first with: dotnet run --project src/ChisBallot.Admin
+// -- create-admin you@example.com, using the same IdentityDatabasePath).
+IResourceBuilder<ProjectResource> admin = builder.AddProject<Projects.ChisBallot_Admin>("admin")
     .WithExternalHttpEndpoints()
     .WithEnvironment("DatabaseConnectionString", ConnectionFor("chisballot_admin", AdminPassword))
-    .WithEnvironment("CHISBALLOT_DEV_ADMIN", "1")
+    .WithEnvironment("IdentityDatabasePath", Path.GetFullPath("../../.local/identity.db", builder.AppHostDirectory))
     .WaitForCompletion(migrator);
+
+if (Environment.GetEnvironmentVariable("CHISBALLOT_REAL_SIGNIN") != "1")
+{
+    admin.WithEnvironment("CHISBALLOT_DEV_ADMIN", "1");
+}
 
 builder.Build().Run();

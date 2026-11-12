@@ -57,9 +57,11 @@ sites.
 | The ballot page reads the code from the address fragment, which the browser never sends, then removes it from the address bar; the code is sent only in the body of one POST | `src/ChisBallot.Vote/Pages/Ballot.razor` | Read `OnInitializedAsync` and `SubmitAsync` |
 | The ballot page sends no referrer, API answers are never cached, request logging is off, and the site loads no analytics or third-party scripts | `src/ChisBallot.Vote/wwwroot/index.html`, `src/ChisBallot.Vote.Server/SecurityHeaders.cs`, `Program.cs` | Read the files; response headers checked with curl |
 | Random question and option order is chosen in the browser with the cryptographic random generator and never sent | `src/ChisBallot.Vote/Shuffler.cs`, `Ballot.razor` | `CastRequest` in `ChisBallot.Contracts` has no order field |
-| Every admin page requires the admin role, and until real sign-in exists nobody can satisfy it, so the site refuses everyone | `src/ChisBallot.Admin/AdminAuth.cs`, the `[Authorize]` line on each page | Read them |
+| Every admin page requires a signed-in account that is in the admin role and has a second factor (a passkey or an authenticator app). The role and the second factor are read from the account store on every check, not from the sign-in cookie, so removing an admin takes effect at once | `src/ChisBallot.Admin/AdminAuth.cs`, `AdminRequirement.cs`, the `[Authorize]` line on each page | `AdminAccessTests` (seven cases); changing either check made the matching tests fail |
+| There is no public registration and no email. An admin is made by an existing admin (a one-time link, valid three days) or by the `create-admin` command on the server; passwords need 12 characters; five wrong passwords lock the account for 15 minutes; the sign-in cookie is HttpOnly, Strict and Secure, with the `__Host-` prefix in production | `AdminInvites.cs`, `AdminAuth.cs`, `Program.cs` | `An_invitation_makes_an_admin_account...`, `Five_wrong_passwords_lock_the_account`; no `/Account/Register` route exists |
+| Admin accounts are stored in a small SQLite file on the admin server, apart from the ballot database, so a ballot-database role cannot see them | `AdminAuth.cs` (`IdentityDatabasePath`) | Read the file |
 | The local-development sign-in exists only in Debug builds, and the build pipeline fails if it is found in a Release build | `src/ChisBallot.Admin/DevAdminHandler.cs`, `.github/workflows/app.yml` | The "Dev-only admin sign-in" step |
-| The local-development admin sign-in is compiled out of release builds, and CI fails if it is not | `#if DEBUG` in `AdminPrincipal.cs`; the "Dev-only admin sign-in" step in `.github/workflows/app.yml` | Read the step; it searches the release DLL |
+| The local-development admin sign-in is compiled out of release builds, and CI fails if it is not | `#if DEBUG` in `DevAdminHandler.cs` and `AdminAuth.cs`; the "Dev-only admin sign-in" step in `.github/workflows/app.yml` | Read the step; it searches the release DLL |
 | The admin site connects as `chisballot_admin`, the voting site as `chisballot_vote` | `src/ChisBallot.AppHost/AppHost.cs` locally; the server setup when deployed (not written yet) | Read them |
 
 Not covered yet: the audit page, demo mode, rate limiting, the bot check, and
@@ -131,7 +133,7 @@ refused.
 | Measure | Where to check |
 |---|---|
 | The voting site contains no admin pages and exposes no admin endpoints. | `ChisBallot.Vote` and `ChisBallot.Vote.Server` contain no admin code |
-| Admin is a separate site, `admin.chisballot.org`, where every route and API call requires a signed-in, invited admin. | The Admin policy in `ChisBallot.Admin/AdminAuth.cs` (invited-admin sign-in is not built yet) |
+| Admin is a separate site, `admin.chisballot.org`, where every route and API call requires a signed-in, invited admin. | The Admin policy in `ChisBallot.Admin/AdminAuth.cs` (invited admins with a second factor) |
 | The two sites use two database users with different rights. The admin user cannot read or change the ballots of an open election. | `chisballot_vote` and `chisballot_admin` grants in the migration; comments in `infra/main.tf` |
 | Everything runs from this public repository. Infrastructure is declared in `infra/` and deployed by the workflows in `.github/workflows/`, not set up by hand. | `infra/`, `.github/workflows/` and the Actions run history |
 

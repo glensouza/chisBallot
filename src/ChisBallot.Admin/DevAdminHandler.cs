@@ -14,12 +14,12 @@ namespace ChisBallot.Admin;
 internal sealed class DevAdminHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
-    public const string Scheme = "DevAdmin";
+    public const string SchemeName = "DevAdmin";
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        ClaimsIdentity identity = new([new Claim(ClaimTypes.Name, "Local developer"), new Claim(ClaimTypes.Role, AdminAuth.AdminRole)], Scheme);
-        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme)));
+        ClaimsIdentity identity = new([new Claim(ClaimTypes.Name, "Local developer"), new Claim(ClaimTypes.Role, AdminAuth.AdminRole)], SchemeName);
+        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
     }
 }
 #endif
