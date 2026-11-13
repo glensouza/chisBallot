@@ -72,7 +72,8 @@ It also makes the slips: the board chair says how many, and the admin site
 shows a printable sheet of QR slips once. Only a scrambled (hashed) form of
 each code is stored, so a lost sheet cannot be reprinted.
 
-Not built yet: editing a draft vote. There is no bot check on the ballot page (see
+Not built yet: editing a draft vote. The ballot page has no third-party bot check; it
+uses rate limits and a small proof of work the browser solves (see
 `docs/anonymity-and-security.md`).
 
 ## Run it on your computer

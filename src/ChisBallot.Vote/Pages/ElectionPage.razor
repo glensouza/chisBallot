@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject ProofOfWorkClient ProofOfWork
 
 <PageTitle>@(this.election?.Name ?? "Vote")</PageTitle>
 
@@ -84,7 +85,8 @@ else
         this.slipError = false;
         try
         {
-            HttpResponseMessage response = await this.Http.PostAsync($"api/elections/{Uri.EscapeDataString(this.Slug)}/demo-slip", null);
+            ProofOfWorkAnswer? proof = await this.ProofOfWork.SolveAsync();
+            HttpResponseMessage response = await this.Http.PostAsJsonAsync($"api/elections/{Uri.EscapeDataString(this.Slug)}/demo-slip", new DemoSlipRequest(proof));
             DemoSlipResponse? slip = response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<DemoSlipResponse>() : null;
             if (slip is null)
             {
