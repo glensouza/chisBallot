@@ -1,3 +1,5 @@
+<p align="center"><img src="../docs/img/chis-logo.png" alt="Citrus Hills Intermediate School jaguar" width="120"></p>
+
 # Running chisBallot on a server
 
 Everything the server needs is in this folder, so anyone can read exactly what

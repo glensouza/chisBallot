@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/img/chis-logo.png" alt="Citrus Hills Intermediate School jaguar" width="160"></p>
+
 # chisBallot
 
 [![Build, test and deploy](https://github.com/glensouza/chisBallot/actions/workflows/build-and-deploy.yml/badge.svg?branch=main)](https://github.com/glensouza/chisBallot/actions/workflows/build-and-deploy.yml)
