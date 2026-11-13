@@ -85,9 +85,10 @@ with its own firewall rules.
 
 ## Deploying
 
-Merging to `main` starts the `Deploy` workflow. It builds on the `prod` runner,
-waits for approval in the `production` environment, then runs
-`chisballot-deploy`. Nothing deploys without that approval.
+Merging to `main` starts the `Build, test and deploy` workflow. It builds and tests
+first; if the change touches the sites or `ops/` and the tests pass, it builds on
+the `prod` runner, waits for approval in the `production` environment, then runs
+`chisballot-deploy`. Nothing deploys without passing tests and that approval.
 
 The first admin is made on the server:
 

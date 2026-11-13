@@ -1,0 +1,100 @@
+name: Build, test and deploy
+
+# One workflow for the whole path from a change to the running sites.
+#
+#   every pull request and every push to main:   build and test
+#   push to main that changes the sites or ops:   then deploy, after the tests pass
+#
+# Deploying builds on the production runner (the server itself) and puts the
+# result into service with the deploy script in ops/lxc. The deploy job waits
+# for a reviewer's approval in the "production" environment, and only main can
+# deploy to it. Pull requests never reach the production runner.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to a pull request replaces its older run. A run on main is never
+# cancelled half way, so a deploy is not interrupted.
+concurrency:
+  group: build-and-deploy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.changes.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release
+
+      - name: Dev-only admin sign-in is not in the release build
+        run: |
+          python3 - <<'PY'
+          import glob
+          marker = "CHISBALLOT_DEV_ADMIN".encode("utf-16-le")
+          dlls = glob.glob("src/ChisBallot.Admin/bin/Release/**/ChisBallot.Admin.dll", recursive=True)
+          assert dlls, "Release build of the admin site was not found"
+          for dll in dlls:
+              assert marker not in open(dll, "rb").read(), dll + " contains the dev admin bypass"
+          print("ok:", dlls)
+          PY
+
+      # Only a change to the sites or the server setup needs a deploy. A run
+      # started by hand always deploys.
+      - name: Does this change need a deploy
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ] && git diff --name-only HEAD~1 HEAD | grep -qE '^(src/|ops/|global\.json$|Directory\.Build\.props$|\.github/workflows/build-and-deploy\.yml$)'; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Deploy to the server
+    needs: test
+    if: >-
+      github.repository == 'glensouza/chisBallot'
+      && github.ref == 'refs/heads/main'
+      && github.event_name != 'pull_request'
+      && needs.test.outputs.deploy == 'true'
+    runs-on: [self-hosted, prod]
+    environment: production
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build
+        run: |
+          rm -rf "$RUNNER_TEMP/release"
+          dotnet publish src/ChisBallot.Vote.Server --configuration Release -p:SourceRevisionId="$GITHUB_SHA" --output "$RUNNER_TEMP/release/vote"
+          dotnet publish src/ChisBallot.Admin --configuration Release --output "$RUNNER_TEMP/release/admin"
+          dotnet publish src/ChisBallot.Migrator --configuration Release --output "$RUNNER_TEMP/release/migrator"
+
+      - name: Deploy
+        run: sudo /usr/local/sbin/chisballot-deploy "$RUNNER_TEMP/release"
