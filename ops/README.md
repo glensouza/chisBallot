@@ -87,9 +87,13 @@ with its own firewall rules.
 ## Deploying
 
 Merging to `main` starts the `Build, test and deploy` workflow. It builds and tests
-first; if the change touches the sites or `ops/` and the tests pass, it builds on
-the `prod` runner, waits for approval in the `production` environment, then runs
-`chisballot-deploy`. Nothing deploys without passing tests and that approval.
+first. If the change touches the sites or `ops/` and the tests pass, the test job
+also publishes what it just built into one compressed bundle (kept one day, deleted
+after a successful deploy). The `prod` runner downloads that bundle, checks its
+checksum, waits for approval in the `production` environment, then runs
+`chisballot-deploy`. Nothing is compiled twice, and the server needs only the
+ASP.NET Core runtime, not the SDK. Nothing deploys without passing tests and that
+approval.
 
 The first admin is made on the server:
 
