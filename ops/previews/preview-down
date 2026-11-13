@@ -1,0 +1,14 @@
+#!/bin/sh
+# Removes the preview for one pull request: containers, its database and its images.
+#   preview-down <pull request number>
+set -eu
+PR=${1:?usage: preview-down <pr>}
+case "$PR" in *[!0-9]*) echo "pull request number must be digits" >&2; exit 2 ;; esac
+HERE=$(cd "$(dirname "$0")" && pwd)
+export PR SHA=none
+docker compose --file "$HERE/compose.yml" down --volumes --remove-orphans >/dev/null 2>&1 || true
+for target in vote admin migrator; do
+    docker rmi -f "chisballot-preview:$PR-$target" >/dev/null 2>&1 || true
+done
+docker image prune -f >/dev/null 2>&1 || true
+echo "Removed the preview for pull request $PR"

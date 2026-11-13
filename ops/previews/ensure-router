@@ -1,0 +1,18 @@
+#!/bin/sh
+# Makes sure the shared network and the router exist. Safe to run again.
+set -eu
+HERE=$(cd "$(dirname "$0")" && pwd)
+STATE="$HOME/previews"
+mkdir -p "$STATE"
+cp "$HERE/Caddyfile" "$STATE/Caddyfile"
+
+docker network inspect previews >/dev/null 2>&1 || docker network create previews >/dev/null
+
+if [ "$(docker inspect -f '{{.State.Running}}' previews-router 2>/dev/null || echo false)" != true ]; then
+    docker rm -f previews-router >/dev/null 2>&1 || true
+    docker run -d --name previews-router --restart unless-stopped --network previews \
+        -p 127.0.0.1:5200:8080 -v "$STATE/Caddyfile:/etc/caddy/Caddyfile:ro" --memory 64m caddy:2 >/dev/null
+    echo "Started the preview router"
+else
+    docker exec previews-router caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || true
+fi

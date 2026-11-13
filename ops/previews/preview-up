@@ -1,0 +1,46 @@
+#!/bin/sh
+# Builds and starts the preview for one pull request, then prints its addresses and a
+# one-time admin link.   preview-up <pull request number> <commit sha>
+set -eu
+PR=${1:?usage: preview-up <pr> <sha>}
+SHA=${2:?usage: preview-up <pr> <sha>}
+case "$PR" in *[!0-9]*) echo "pull request number must be digits" >&2; exit 2 ;; esac
+HERE=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(cd "$HERE/../.." && pwd)
+export PR SHA
+MAX_PREVIEWS=${MAX_PREVIEWS:-4}
+# Where the router is reached from this script. The tunnel uses the same address.
+ROUTER=${ROUTER:-http://127.0.0.1:5200}
+
+"$HERE/ensure-router"
+
+others=$(docker ps --all --format '{{.Label "com.docker.compose.project"}}' | grep -E '^pr-[0-9]+$' | sort -u | grep -vx "pr-$PR" | wc -l | tr -d ' ')
+if [ "$others" -ge "$MAX_PREVIEWS" ]; then
+    echo "There are already $others other previews running (limit $MAX_PREVIEWS). Close a pull request first." >&2
+    exit 3
+fi
+
+for target in vote admin migrator; do
+    docker build --quiet --file "$HERE/Dockerfile" --target "$target" --build-arg "SHA=$SHA" --tag "chisballot-preview:$PR-$target" "$ROOT" >/dev/null
+done
+
+docker compose --file "$HERE/compose.yml" up --detach --force-recreate --remove-orphans >/dev/null
+
+# Ask through the router, as the tunnel would.
+i=0
+until [ "$(curl -s -o /dev/null -m 5 -w '%{http_code}' -H "Host: vote-pr-$PR.chisballot.org" "$ROUTER/api/elections/demo")" = 200 ] \
+   && [ "$(curl -s -o /dev/null -m 5 -w '%{http_code}' -H "Host: admin-pr-$PR.chisballot.org" "$ROUTER/Account/Login")" = 200 ]; do
+    i=$((i + 1))
+    if [ "$i" -ge 60 ]; then
+        echo "The preview did not come up in time:" >&2
+        docker compose --file "$HERE/compose.yml" ps >&2 || true
+        docker compose --file "$HERE/compose.yml" logs --tail 30 >&2 || true
+        exit 1
+    fi
+    sleep 3
+done
+
+LINK=$(docker compose --file "$HERE/compose.yml" exec -T admin dotnet ChisBallot.Admin.dll create-admin reviewer@preview.invalid | grep -o 'https://[^ ]*ResetPassword[^ ]*' | head -n 1 || true)
+echo "VOTE_URL=https://vote-pr-$PR.chisballot.org"
+echo "ADMIN_URL=https://admin-pr-$PR.chisballot.org"
+echo "ADMIN_LINK=$LINK"

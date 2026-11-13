@@ -1,0 +1,9 @@
+.git
+.github
+.local
+**/bin
+**/obj
+docs
+ops
+site
+*.db*

@@ -43,7 +43,18 @@ if (builder.Configuration["DataProtectionKeyPath"] is string keyPath)
 }
 
 // The site sits behind a Cloudflare tunnel on this machine, which says whether the visitor used HTTPS.
-builder.Services.Configure<ForwardedHeadersOptions>(options => options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto);
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+    // A pull-request preview sits behind a router in another container, reachable only on a private
+    // network. Production leaves this off and trusts only the tunnel on this machine.
+    if (builder.Configuration.GetValue("TrustAnyProxy", false))
+    {
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+    }
+});
 
 builder.AddAdminAuth();
 

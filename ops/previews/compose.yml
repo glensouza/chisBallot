@@ -1,0 +1,74 @@
+# One pull-request preview: its own database, the migrator (which also makes the demo
+# votes), the voting site and the admin site. Started by ops/previews/preview-up with
+# PR (the pull request number) and SHA set. Nothing is published on the host: the
+# router (Caddy, on the shared "previews" network) reaches the sites by the aliases
+# vote-pr-<PR> and admin-pr-<PR>. The passwords are throwaway; the data is in memory.
+name: pr-${PR}
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: preview
+      POSTGRES_DB: chisballot
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chisballot"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    mem_limit: 256m
+
+  migrate:
+    image: chisballot-preview:${PR}-migrator
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__chisballot: Host=db;Database=chisballot;Username=postgres;Password=preview
+      ChisBallot__VotePassword: vote-preview
+      ChisBallot__AdminPassword: admin-preview
+    restart: "no"
+
+  vote:
+    image: chisballot-preview:${PR}-vote
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      DatabaseConnectionString: Host=db;Database=chisballot;Username=chisballot_vote;Password=vote-preview
+    networks:
+      default: {}
+      previews:
+        aliases:
+          - vote-pr-${PR}
+    mem_limit: 192m
+
+  admin:
+    image: chisballot-preview:${PR}-admin
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      DatabaseConnectionString: Host=db;Database=chisballot;Username=chisballot_admin;Password=admin-preview
+      IdentityDatabasePath: /data/identity.db
+      DataProtectionKeyPath: /data/keys
+      PublicUrl: https://admin-pr-${PR}.chisballot.org
+      VoteSiteUrl: https://vote-pr-${PR}.chisballot.org
+      # The only way in is the router on the private network, so its forwarded headers can be trusted.
+      TrustAnyProxy: "true"
+    tmpfs:
+      - /data:mode=1777
+    networks:
+      default: {}
+      previews:
+        aliases:
+          - admin-pr-${PR}
+    mem_limit: 256m
+
+networks:
+  previews:
+    external: true

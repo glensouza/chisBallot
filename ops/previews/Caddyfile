@@ -1,0 +1,21 @@
+# The router for pull-request previews. It listens on 8080 (published on the host's
+# loopback as 5200, which the Cloudflare tunnel points *.chisballot.org at) and sends
+# vote-pr-<n>.chisballot.org and admin-pr-<n>.chisballot.org to the container with that
+# network alias. Anything else gets a 404.
+{
+	admin off
+	auto_https off
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:8080 {
+	@preview header_regexp preview Host ^(vote|admin)-pr-[0-9]+\.chisballot\.org$
+	handle @preview {
+		reverse_proxy {labels.2}:8080
+	}
+	handle {
+		respond "No such preview." 404
+	}
+}
