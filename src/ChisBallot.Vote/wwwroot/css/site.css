@@ -94,3 +94,5 @@ main {
 .chis-brand { display: inline-flex; align-items: center; gap: 0.75rem; color: #fff; text-decoration: none; }
 .chis-logo { height: 2.4rem; width: auto; background: #fff; border-radius: 999px; padding: 0.25rem 0.6rem; box-sizing: content-box; }
 .fingerprint { word-break: break-all; }
+
+.record-button { display: inline-block; text-decoration: none; margin: 0.5rem 0 1rem; }
