@@ -4,6 +4,7 @@
 @inject ElectionAdmin AdminService
 @inject IConfiguration Configuration
 @inject IJSRuntime Js
+@inject NavigationManager Navigation
 
 <PageTitle>@(this.view?.Election.Name ?? "Vote")</PageTitle>
 
@@ -104,6 +105,30 @@ else
         </div>
     }
 
+    @if (election.RevoteOfSlug is not null)
+    {
+        <p class="hint">This is a revote. It follows <strong>/e/@election.RevoteOfSlug</strong>.</p>
+    }
+
+    @if (election.Status == 2 && this.view.Results is not null && this.view.Results.Any(result => result.Tie is not null))
+    {
+        <div class="chis-card">
+            <h2>Revote</h2>
+            @if (election.RevoteId is Guid revoteId)
+            {
+                <p>A revote was made: <a href="/elections/@revoteId">/e/@election.RevoteSlug</a>.</p>
+            }
+            else
+            {
+                <p>
+                    Some questions ended in a tie. A revote is a new vote with only those questions, only the tied choices
+                    and the seats still open. It starts as a draft and needs its own slips.
+                </p>
+                <button class="chis-button" disabled="@this.busy" @onclick="this.StartRevoteAsync">Make the revote</button>
+            }
+        </div>
+    }
+
     @if (this.view.Results is not null)
     {
         <h2>@(election.Status == 2 ? "Results" : "Running totals")</h2>
@@ -154,6 +179,27 @@ else
     private IReadOnlyList<string>? slips;
 
     private string VoteSiteUrl => this.Configuration["VoteSiteUrl"] ?? "https://vote.chisballot.org";
+
+    private async Task StartRevoteAsync()
+    {
+        this.busy = true;
+        this.error = null;
+        try
+        {
+            CreateElectionResponse response = await this.Views.StartRevoteAsync(this.Id);
+            if (response.Id is Guid newId)
+            {
+                this.Navigation.NavigateTo($"/elections/{newId}");
+                return;
+            }
+
+            this.error = response.Error;
+        }
+        finally
+        {
+            this.busy = false;
+        }
+    }
 
     private async Task PrintAsync()
     {

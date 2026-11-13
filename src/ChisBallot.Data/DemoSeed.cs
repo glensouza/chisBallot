@@ -15,7 +15,14 @@ public static class DemoSeed
     public const string OpenSlug = "demo";
     public const string TieSlug = "demo-tie";
 
-    private const string DemoIds = "(SELECT id FROM ballot.elections WHERE is_demo AND slug IN ('demo', 'demo-tie'))";
+    // The two demos and any revote made from them (a revote of a demo is a demo too).
+    private const string DemoIds = """
+        (WITH RECURSIVE d AS (
+            SELECT id FROM ballot.elections WHERE is_demo AND slug IN ('demo', 'demo-tie')
+            UNION
+            SELECT e.id FROM ballot.elections e JOIN d ON e.revote_of = d.id WHERE e.is_demo)
+         SELECT id FROM d)
+        """;
 
     public static async Task EnsureAsync(string connectionString, CancellationToken cancellationToken = default)
     {
