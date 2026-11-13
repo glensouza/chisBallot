@@ -37,7 +37,10 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_PASSWORD: test-only
+        # The data lives in memory, so nothing is left on disk when the job ends
+        # (the image's data folder would otherwise leave a volume behind each run).
         options: >-
+          --tmpfs /var/lib/postgresql/data
           --health-cmd pg_isready
           --health-interval 5s
           --health-timeout 5s
