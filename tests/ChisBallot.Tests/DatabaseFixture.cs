@@ -18,7 +18,12 @@ public sealed class DatabaseFixture : IAsyncLifetime
     private const string DatabaseName = "chisballot_test";
     private const string OwnerName = "chisballot_owner";
 
-    private readonly PostgreSqlContainer container = new PostgreSqlBuilder("postgres:17").Build();
+    // When this is set (the pipeline runs the tests inside a container next to a
+    // PostgreSQL service container) its value is a superuser connection string
+    // to that database server. Otherwise the tests start their own container.
+    private static readonly string? ExistingServer = Environment.GetEnvironmentVariable("CHISBALLOT_TEST_POSTGRES");
+
+    private readonly PostgreSqlContainer? container = ExistingServer is null ? new PostgreSqlBuilder("postgres:17").Build() : null;
 
     public string OwnerConnectionString { get; private set; } = string.Empty;
 
@@ -30,17 +35,22 @@ public sealed class DatabaseFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        await this.container.StartAsync();
+        if (this.container is not null)
+        {
+            await this.container.StartAsync();
+        }
+
+        string serverConnectionString = ExistingServer ?? this.container!.GetConnectionString();
 
         string ownerPassword = NewPassword();
-        await using (NpgsqlConnection superuser = new(this.container.GetConnectionString()))
+        await using (NpgsqlConnection superuser = new(serverConnectionString))
         {
             await superuser.OpenAsync();
             await ExecuteAsync(superuser, $"CREATE ROLE {OwnerName} WITH LOGIN CREATEROLE PASSWORD '{ownerPassword}'");
             await ExecuteAsync(superuser, $"CREATE DATABASE {DatabaseName} OWNER {OwnerName}");
         }
 
-        NpgsqlConnectionStringBuilder owner = new(this.container.GetConnectionString())
+        NpgsqlConnectionStringBuilder owner = new(serverConnectionString)
         {
             Database = DatabaseName,
             Username = OwnerName,
@@ -61,7 +71,10 @@ public sealed class DatabaseFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await this.container.DisposeAsync();
+        if (this.container is not null)
+        {
+            await this.container.DisposeAsync();
+        }
     }
 
     private static async Task ExecuteAsync(NpgsqlConnection connection, string sql)

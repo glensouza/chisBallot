@@ -5,7 +5,9 @@ name: Build, test and deploy
 #   every pull request and every push to main:   build and test
 #   push to main that changes the sites or ops:   then deploy, after the tests pass
 #
-# Deploying builds on the production runner (the server itself) and puts the
+# The tests run on the server's pull-request runner, inside a container (the
+# .NET SDK image) next to a throwaway PostgreSQL container, as the runner's
+# unprivileged user with rootless Docker. Deploying builds on the production runner (the server itself) and puts the
 # result into service with the deploy script in ops/lxc. The deploy job waits
 # for a reviewer's approval in the "production" environment, and only main can
 # deploy to it. Pull requests never reach the production runner.
@@ -27,17 +29,29 @@ concurrency:
 jobs:
   test:
     name: Build and test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, pr]
+    container:
+      image: mcr.microsoft.com/dotnet/sdk:11.0
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: test-only
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      CHISBALLOT_TEST_POSTGRES: Host=postgres;Username=postgres;Password=test-only
     outputs:
       deploy: ${{ steps.changes.outputs.deploy }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
 
       - name: Restore
         run: dotnet restore
@@ -50,15 +64,16 @@ jobs:
 
       - name: Dev-only admin sign-in is not in the release build
         run: |
-          python3 - <<'PY'
-          import glob
-          marker = "CHISBALLOT_DEV_ADMIN".encode("utf-16-le")
-          dlls = glob.glob("src/ChisBallot.Admin/bin/Release/**/ChisBallot.Admin.dll", recursive=True)
-          assert dlls, "Release build of the admin site was not found"
-          for dll in dlls:
-              assert marker not in open(dll, "rb").read(), dll + " contains the dev admin bypass"
-          print("ok:", dlls)
-          PY
+          dlls=$(find src/ChisBallot.Admin/bin/Release -name ChisBallot.Admin.dll)
+          test -n "$dlls" || { echo "Release build of the admin site was not found"; exit 1; }
+          for dll in $dlls; do
+            # The marker is stored as UTF-16, so letters are separated by NUL bytes.
+            if perl -0777 -ne 'exit(index($_, join("\0", split(//, "CHISBALLOT_DEV_ADMIN"))) >= 0 ? 0 : 1)' "$dll"; then
+              echo "$dll contains the dev admin bypass"
+              exit 1
+            fi
+            echo "ok: $dll"
+          done
 
       # Only a change to the sites or the server setup needs a deploy. A run
       # started by hand always deploys.
