@@ -159,3 +159,29 @@ a.chis-button {
         display: none !important;
     }
 }
+
+/* Paper ballots and the count sheet (PaperKit.razor). */
+.paper-ballots { display: block; }
+.paper-ballot { box-sizing: border-box; border: 2px solid #000; padding: 0.8cm 1cm; margin: 0 0 0.6cm; min-height: 12.2cm; break-inside: avoid; page-break-inside: avoid; background: #fff; color: #000; }
+.paper-ballot header { text-align: center; border-bottom: 1px solid #000; margin-bottom: 0.4cm; padding-bottom: 0.2cm; }
+.paper-ballot h2 { margin: 0.1cm 0 0; font-size: 1.3rem; }
+.paper-mark { display: inline-block; border: 1px solid #000; padding: 0 0.3cm; font-weight: 700; letter-spacing: 0.15em; font-size: 0.8rem; }
+.paper-contest h3 { margin: 0.35cm 0 0.05cm; font-size: 1.05rem; }
+.paper-rule { margin: 0 0 0.15cm; font-size: 0.85rem; font-style: italic; }
+.paper-choice { margin: 0.12cm 0; font-size: 1rem; }
+.paper-box { display: inline-block; width: 0.45cm; height: 0.45cm; border: 1.5px solid #000; vertical-align: middle; margin-right: 0.2cm; }
+.paper-line { display: inline-block; min-width: 6cm; border-bottom: 1px solid #000; height: 0.6em; vertical-align: baseline; }
+.paper-line.short { min-width: 3cm; }
+.paper-ballot footer { margin-top: 0.4cm; font-size: 0.8rem; border-top: 1px solid #000; padding-top: 0.2cm; }
+.paper-count { background: #fff; color: #000; }
+.paper-count table { width: 100%; border-collapse: collapse; margin: 0.2cm 0 0.4cm; }
+.paper-count td, .paper-count th { border: 1px solid #000; padding: 0.18cm 0.25cm; text-align: left; }
+.paper-fill { width: 3.2cm; }
+.paper-tally td:nth-child(2) { width: 40%; }
+.paper-sign { margin-top: 0.6cm; }
+.paper-sign p { margin: 0.5cm 0; }
+
+@media print {
+    .paper-break { break-before: page; page-break-before: always; }
+    .paper-ballot:nth-child(2n) { break-after: page; page-break-after: always; }
+}
