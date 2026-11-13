@@ -13,7 +13,8 @@ name: Build, test and deploy
 # and tested into one compressed bundle (a workflow artifact, kept one day and
 # deleted after a successful deploy). The deploy job on the production runner only
 # downloads that bundle, checks its checksum and puts it into service with the
-# deploy script in ops/lxc; it never compiles, so the server needs no SDK. It waits
+# deploy script in ops/lxc (which also updates the server's scripts from this
+# commit); it never compiles, so the server needs no SDK. It waits
 # for a reviewer's approval in the "production" environment, and only main can
 # deploy to it. Pull requests never reach the production runner.
 on:
@@ -135,6 +136,13 @@ jobs:
       contents: read
       actions: write
     steps:
+      # Only the server's own scripts, from this commit, so the deploy can update
+      # them (see ops/lxc/chisballot-deploy). No source is built here.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: ops/lxc
+          persist-credentials: false
+
       - uses: actions/download-artifact@v8
         with:
           name: release
@@ -149,7 +157,7 @@ jobs:
           tar -xzf chisballot-release.tgz -C "$RUNNER_TEMP/release" --no-same-owner
 
       - name: Deploy
-        run: sudo /usr/local/sbin/chisballot-deploy "$RUNNER_TEMP/release"
+        run: sudo /usr/local/sbin/chisballot-deploy "$RUNNER_TEMP/release" "$GITHUB_WORKSPACE/ops/lxc"
 
       # Not needed any more once it is in service. If the deploy failed it stays
       # (for a day) so the job can be run again.

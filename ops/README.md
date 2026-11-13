@@ -93,7 +93,11 @@ after a successful deploy). The `prod` runner downloads that bundle, checks its
 checksum, waits for approval in the `production` environment, then runs
 `chisballot-deploy`. Nothing is compiled twice, and the server needs only the
 ASP.NET Core runtime, not the SDK. Nothing deploys without passing tests and that
-approval.
+approval. After a successful deploy the script also installs the scripts in `ops/lxc/`
+from the same commit (`chisballot-deploy`, `-rollback`, `-backup`, `-lib.sh`), each
+checked with `sh -n` first, so they never need installing by hand. The service
+units, the sudo rule and the firewall file are not updated that way; change those
+by running `setup.sh` again.
 
 The first admin is made on the server:
 
