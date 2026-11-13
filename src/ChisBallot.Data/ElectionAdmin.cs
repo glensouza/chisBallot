@@ -40,25 +40,7 @@ public sealed class ElectionAdmin(string connectionString, ILogger logger)
                 ("shuffleContests", request.ShuffleContests), ("shuffleChoices", request.ShuffleChoices),
                 ("demo", isDemo), ("revoteOf", (object?)revoteOf ?? DBNull.Value));
 
-            for (int contestIndex = 0; contestIndex < request.Contests.Count; contestIndex++)
-            {
-                ContestInput contest = request.Contests[contestIndex];
-                Guid contestId = Guid.NewGuid();
-                await ExecuteAsync(connection, transaction, """
-                    INSERT INTO ballot.contests (id, election_id, title, seats, max_selections, allow_write_in, sort_order)
-                    VALUES (@id, @election, @title, @seats, @max, @writeIn, @order)
-                    """,
-                    ("id", contestId), ("election", electionId), ("title", contest.Title.Trim()), ("seats", contest.Seats),
-                    ("max", contest.MaxSelections), ("writeIn", contest.AllowWriteIn), ("order", contestIndex));
-
-                for (int choiceIndex = 0; choiceIndex < contest.Choices.Count; choiceIndex++)
-                {
-                    await ExecuteAsync(connection, transaction,
-                        "INSERT INTO ballot.choices (id, contest_id, label, sort_order) VALUES (gen_random_uuid(), @contest, @label, @order)",
-                        ("contest", contestId), ("label", contest.Choices[choiceIndex].Trim()), ("order", choiceIndex));
-                }
-            }
-
+            await InsertContestsAsync(connection, transaction, electionId, request.Contests);
             await transaction.CommitAsync(cancellationToken);
         }
         catch (PostgresException exception) when (exception.SqlState == UniqueViolation)
@@ -68,6 +50,87 @@ public sealed class ElectionAdmin(string connectionString, ILogger logger)
 
         logger.Information("Created draft election {ElectionId}", electionId);
         return new CreateElectionResponse(electionId, null);
+    }
+
+    /// <summary>
+    /// Changes a draft: its name, options, questions and choices are replaced by what the request
+    /// says, in one transaction. Only a draft can be changed (the database refuses anything else).
+    /// Once slips have been made the address stays as it is, because the slips' QR codes contain it.
+    /// </summary>
+    public async Task<CreateElectionResponse> UpdateDraftAsync(Guid electionId, CreateElectionRequest request, CancellationToken cancellationToken = default)
+    {
+        string? problem = ElectionRequestValidator.Validate(request);
+        if (problem is not null)
+        {
+            return new CreateElectionResponse(null, problem);
+        }
+
+        await using NpgsqlConnection connection = new(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            await using (NpgsqlCommand update = new("""
+                UPDATE ballot.elections
+                SET name = @name,
+                    slug = CASE WHEN codes_issued = 0 THEN @slug ELSE slug END,
+                    show_live_results = @live,
+                    shuffle_contests = @shuffleContests,
+                    shuffle_choices = @shuffleChoices
+                WHERE id = @id AND status = 0
+                """, connection, transaction))
+            {
+                update.Parameters.AddWithValue("id", electionId);
+                update.Parameters.AddWithValue("name", request.Name.Trim());
+                update.Parameters.AddWithValue("slug", request.Slug);
+                update.Parameters.AddWithValue("live", request.ShowLiveResults);
+                update.Parameters.AddWithValue("shuffleContests", request.ShuffleContests);
+                update.Parameters.AddWithValue("shuffleChoices", request.ShuffleChoices);
+                if (await update.ExecuteNonQueryAsync(cancellationToken) == 0)
+                {
+                    return new CreateElectionResponse(null, "Only a draft can be changed.");
+                }
+            }
+
+            await ExecuteAsync(connection, transaction, "DELETE FROM ballot.choices WHERE contest_id IN (SELECT id FROM ballot.contests WHERE election_id = @id)", ("id", electionId));
+            await ExecuteAsync(connection, transaction, "DELETE FROM ballot.contests WHERE election_id = @id", ("id", electionId));
+            await InsertContestsAsync(connection, transaction, electionId, request.Contests);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (PostgresException exception) when (exception.SqlState == UniqueViolation)
+        {
+            return new CreateElectionResponse(null, "That address is already used by another vote.");
+        }
+        catch (PostgresException exception) when (exception.SqlState == ElectionChangeRefused)
+        {
+            return new CreateElectionResponse(null, "Only a draft can be changed.");
+        }
+
+        logger.Information("Changed draft election {ElectionId}", electionId);
+        return new CreateElectionResponse(electionId, null);
+    }
+
+    private static async Task InsertContestsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid electionId, IReadOnlyList<ContestInput> contests)
+    {
+        for (int contestIndex = 0; contestIndex < contests.Count; contestIndex++)
+        {
+            ContestInput contest = contests[contestIndex];
+            Guid contestId = Guid.NewGuid();
+            await ExecuteAsync(connection, transaction, """
+                INSERT INTO ballot.contests (id, election_id, title, seats, max_selections, allow_write_in, sort_order)
+                VALUES (@id, @election, @title, @seats, @max, @writeIn, @order)
+                """,
+                ("id", contestId), ("election", electionId), ("title", contest.Title.Trim()), ("seats", contest.Seats),
+                ("max", contest.MaxSelections), ("writeIn", contest.AllowWriteIn), ("order", contestIndex));
+
+            for (int choiceIndex = 0; choiceIndex < contest.Choices.Count; choiceIndex++)
+            {
+                await ExecuteAsync(connection, transaction,
+                    "INSERT INTO ballot.choices (id, contest_id, label, sort_order) VALUES (gen_random_uuid(), @contest, @label, @order)",
+                    ("contest", contestId), ("label", contest.Choices[choiceIndex].Trim()), ("order", choiceIndex));
+            }
+        }
     }
 
     /// <summary>
