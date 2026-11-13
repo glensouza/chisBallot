@@ -120,6 +120,28 @@ never a real election):
 systemd-run --wait --pipe --collect -p User=chisballot-migrate -p EnvironmentFile=/etc/chisballot/owner.env -p ProtectSystem=strict -p WorkingDirectory=$(readlink -f /opt/chisballot/migrator/current) /usr/bin/dotnet ChisBallot.Migrator.dll --reset-demo
 ```
 
+## Pull-request previews
+
+A pull request from this repository gets its own copy of both sites at
+`vote-pr-<number>.chisballot.org` and `admin-pr-<number>.chisballot.org`, with its own
+database and the demo votes. Pull requests from forks get none. They are started by
+`.github/workflows/preview.yml` and removed when the pull request closes (a daily sweep also
+removes any left behind).
+
+- Everything runs as `runner-pr` in rootless Docker, behind the same firewall rules as the
+  tests. Nothing is published on the host except the router.
+- The router is one Caddy container (`ops/previews/Caddyfile`) on a shared `previews`
+  network, published on `127.0.0.1:5200`. Each preview's containers carry the network
+  aliases `vote-pr-<n>` and `admin-pr-<n>`, so the router needs no configuration per pull
+  request.
+- The Cloudflare tunnel sends `*.chisballot.org` (after the explicit `vote.` and `admin.`
+  entries) to port 5200, and a wildcard DNS record points at the tunnel. `ops/previews/ensure-router`
+  starts the router if it is not running.
+- At most four previews run at once (`MAX_PREVIEWS`). The data is in memory, so a preview
+  starts empty except for the demo votes.
+- Each preview prints a one-time admin link, which the workflow puts in the pull request.
+  The link works for that throwaway copy only.
+
 ## Backups
 
 The backup is encrypted to a public key before it is written, so the files in

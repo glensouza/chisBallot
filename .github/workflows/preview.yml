@@ -1,0 +1,116 @@
+name: Pull-request previews
+
+# A pull request from this repository gets its own copy of both sites, with its own
+# database and the demo votes, at vote-pr-<number>.chisballot.org and
+# admin-pr-<number>.chisballot.org. It runs on the pull-request runner in rootless Docker
+# (see ops/previews) and is removed when the pull request closes. Pull requests from forks
+# get no preview: it would put their code on the public internet.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  up:
+    name: Start the preview
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.action != 'closed'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, pr]
+    concurrency:
+      group: preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build and start it
+        id: preview
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          out=$(ops/previews/preview-up "$PR" "$SHA")
+          echo "$out" | grep -E '^(VOTE_URL|ADMIN_URL|ADMIN_LINK)=' >> "$GITHUB_OUTPUT"
+
+      - name: Say where it is
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          VOTE_URL: ${{ steps.preview.outputs.VOTE_URL }}
+          ADMIN_URL: ${{ steps.preview.outputs.ADMIN_URL }}
+          ADMIN_LINK: ${{ steps.preview.outputs.ADMIN_LINK }}
+        run: |
+          body=$(printf '%s\n' \
+            '<!-- chisballot-preview -->' \
+            "**Preview** of \`${SHA:0:7}\` (removed when this pull request closes)" \
+            '' \
+            "- Voting site: $VOTE_URL (the demo vote is at \`/e/demo\`)" \
+            "- Admin site: $ADMIN_URL" \
+            "- First admin sign-in, once: $ADMIN_LINK" \
+            '' \
+            'It is a throwaway copy with made-up data. Anyone with the admin link can use that preview.')
+          api="https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$PR/comments"
+          id=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" "$api?per_page=100" | jq -r 'map(select(.body | contains("<!-- chisballot-preview -->"))) | first | .id // empty')
+          if [ -n "$id" ]; then
+            curl -fsS -X PATCH -H "Authorization: Bearer $GH_TOKEN" -d "$(jq -n --arg b "$body" '{body: $b}')" "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/comments/$id" >/dev/null
+          else
+            curl -fsS -X POST -H "Authorization: Bearer $GH_TOKEN" -d "$(jq -n --arg b "$body" '{body: $b}')" "$api" >/dev/null
+          fi
+
+  down:
+    name: Remove the preview
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: [self-hosted, pr]
+    steps:
+      # The scripts from main, not from the pull request being closed.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Remove it
+        run: ops/previews/preview-down "${{ github.event.pull_request.number }}"
+
+      - name: Update the comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          api="https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$PR/comments"
+          id=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" "$api?per_page=100" | jq -r 'map(select(.body | contains("<!-- chisballot-preview -->"))) | first | .id // empty')
+          if [ -n "$id" ]; then
+            curl -fsS -X PATCH -H "Authorization: Bearer $GH_TOKEN" -d "$(jq -n '{body: "<!-- chisballot-preview -->\n**Preview** removed."}')" "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/comments/$id" >/dev/null
+          fi
+
+  sweep:
+    name: Remove previews of closed pull requests
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, pr]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Remove what is left over
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for project in $(docker ps --all --format '{{.Label "com.docker.compose.project"}}' | grep -E '^pr-[0-9]+$' | sort -u); do
+            pr=${project#pr-}
+            state=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$pr" | jq -r '.state')
+            if [ "$state" != open ]; then
+              ops/previews/preview-down "$pr"
+            fi
+          done
+          docker builder prune --force --filter until=72h >/dev/null 2>&1 || true
