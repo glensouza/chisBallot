@@ -20,7 +20,7 @@ www.chisballot.org      -> GitHub Pages (the landing page)
 | `setup.sh` | Makes the users, the database and owner role, the passwords (kept only in `/etc/chisballot`, root-readable), each program's settings file, and installs everything below. Safe to re-run; never overwrites the passwords. |
 | `chisballot-vote.service`, `chisballot-admin.service` | The two sites, each as its own unprivileged user, sandboxed by systemd. The voting site writes nothing to disk. The admin site writes only its accounts file and sign-in keys. |
 | `chisballot-deploy` | Puts a build into service: copies it, applies database changes, switches the `current` links, restarts, checks both sites answer, and goes back if they do not. The production runner may run this as root and nothing else (one sudo rule, made by `setup.sh`). |
-| `chisballot-lib.sh`, `chisballot-rollback` | Shared checks, and the rollback: it restores the snapshot a deploy takes (ballot database and admin accounts file) and puts the previous programs back. A deploy refuses to start while a real vote is open. See `docs/migrations.md`. |
+| `chisballot-lib.sh`, `chisballot-rollback` | Shared checks, and the rollback: it restores the snapshot a deploy takes (ballot database and admin accounts file) and puts the previous programs back. A deploy waits while a real vote is open (up to four hours). See `docs/migrations.md`. |
 | `chisballot-backup`, `.service`, `.timer` | Nightly encrypted backup of the ballot database and the admin accounts file, to an outbox folder. |
 | `cloudflared.service` | The tunnel, as its own unprivileged user. |
 
@@ -113,8 +113,8 @@ authenticator app.
 Every deploy makes the two demo elections if they are missing: `/e/demo` (open,
 the room votes on it) and `/e/demo-tie` (closed, ends in a tie). A deploy never
 touches ballots already in them. To start a fresh demo, for example before a
-meeting, delete the demos' ballots and slips and make them again (demos only,
-never a real election):
+meeting, press **Reset the demos** on the admin site's Votes page. The same thing
+can be done on the server (demos only, never a real election):
 
 ```
 systemd-run --wait --pipe --collect -p User=chisballot-migrate -p EnvironmentFile=/etc/chisballot/owner.env -p ProtectSystem=strict -p WorkingDirectory=$(readlink -f /opt/chisballot/migrator/current) /usr/bin/dotnet ChisBallot.Migrator.dll --reset-demo

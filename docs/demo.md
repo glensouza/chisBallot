@@ -43,14 +43,14 @@ a real election works.
 | Real elections have no public code-issuing endpoint at all. | Vote API routes |
 | Demo and real data never mix: every count, audit number and list is per election. | Queries all filter on the election id |
 | The demo-slip button is rate limited per client address (100 slips in 10 minutes), and the database stops at 300 slips per demo. | `VoteLimits` in `VoteEndpoints.cs`; `issue_demo_code` in `003_demo.sql` |
-| Creating and resetting demos exists only on the admin site, and reset refuses a non-demo election. | Admin API and its tests |
+| Resetting demos is one database function that can reach only the two demos and any revote made from them; the admin role cannot delete ballots itself. | `ballot.reset_demos` in `006_demo_functions.sql`; `DemoTests` |
 | A demo follows every anonymity rule: no name, code or time on a ballot, and nothing logged. | `docs/anonymity-and-security.md` |
 
 ## Demo script (about 7 minutes, after slide 3)
 
 **Before the meeting (the day before, and again 15 minutes early)**
 
-1. Reset the demo on the server (`ops/README.md`, "The demo"). It opens by
+1. On the admin site, **Votes**, then **Reset the demos**. The demo opens by
    itself. Its questions are "Pick three field trip spots" (six options, three
    seats, write-in on) and "Should lunch be longer?" (yes or no).
 2. Load `vote.chisballot.org/e/demo` on your phone to check it comes up.

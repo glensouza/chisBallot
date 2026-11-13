@@ -96,7 +96,8 @@ is counted at the end like an unused paper ballot."
 **Purpose:** let everyone vote once on a practice question. This does more
 than any other slide.
 
-**Before the meeting:** reset the demo on the server (it opens by itself), load
+**Before the meeting:** on the admin site's Votes page press **Reset the demos**
+(the demo opens by itself), load
 the demo page on your phone early, do one test vote, then reset again. Keep
 screenshots of each step in case the internet fails. The full script and the
 reset steps are in `docs/demo.md`.

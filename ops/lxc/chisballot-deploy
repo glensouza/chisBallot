@@ -2,7 +2,7 @@
 # Puts a freshly built release into service. Run as root, and only through the
 # one sudo rule the production runner has (see setup.sh):
 #
-#   sudo /usr/local/sbin/chisballot-deploy <folder containing vote/, admin/, migrator/> [ops folder]
+#   sudo /usr/local/sbin/chisballot-deploy <folder containing vote/, admin/, migrator/> [ops folder] [seconds to wait]
 #
 # The optional second folder holds ops/lxc from the same commit. After a successful
 # deploy the scripts in it (this one included) are installed, so the server's scripts
@@ -14,8 +14,10 @@
 # release (and the database it found) if they do not. Old releases and snapshots are
 # kept (three each).
 #
-# It refuses to start while a real vote is open (see chisballot-lib.sh). To deploy
-# anyway, as root: CHISBALLOT_FORCE_DEPLOY=1 chisballot-deploy <folder>
+# While a real vote is open it waits for the vote to close (see chisballot-lib.sh), up to the
+# number of seconds given as the third argument (none by default), and gives up with exit
+# code 3 if the vote is still open then. To deploy anyway, as root:
+# CHISBALLOT_FORCE_DEPLOY=1 chisballot-deploy <folder>
 set -eu
 
 . /usr/local/lib/chisballot/chisballot-lib.sh
@@ -41,11 +43,22 @@ done
     exit 2
 }
 
-open=$(open_votes)
-if [ "$open" != 0 ] && [ "${CHISBALLOT_FORCE_DEPLOY:-}" != 1 ]; then
-    echo "refusing: $open real vote(s) are open. Deploy after they close." >&2
-    exit 3
-fi
+# Never deploy under a vote in progress: wait for it to close, if asked to wait.
+MAX_WAIT=${3:-0}
+waited=0
+while :; do
+    open=$(open_votes)
+    if [ "$open" = 0 ] || [ "${CHISBALLOT_FORCE_DEPLOY:-}" = 1 ]; then
+        break
+    fi
+    if [ "$waited" -ge "$MAX_WAIT" ]; then
+        echo "refusing: $open real vote(s) are still open after waiting ${waited}s. Deploy after they close." >&2
+        exit 3
+    fi
+    echo "Waiting for $open real vote(s) to close (${waited}s of ${MAX_WAIT}s)"
+    sleep 30
+    waited=$((waited + 30))
+done
 
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 echo "Release $STAMP"

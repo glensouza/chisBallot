@@ -119,6 +119,16 @@ public sealed class ElectionAdmin(string connectionString, ILogger logger)
     }
 
     /// <summary>Opens a draft that has slips. Returns false when it is not a draft or has no slips yet.</summary>
+    /// <summary>
+    /// Deletes the demo votes, and any revote of them, and makes them again. Only demos are
+    /// touched; the database function refuses nothing because it can reach nothing else.
+    /// </summary>
+    public async Task ResetDemosAsync(CancellationToken cancellationToken = default)
+    {
+        await DemoSeed.ResetAsync(connectionString, cancellationToken);
+        logger.Information("The demo votes were reset");
+    }
+
     public async Task<bool> OpenAsync(Guid electionId, CancellationToken cancellationToken = default)
     {
         await using NpgsqlConnection connection = new(connectionString);
