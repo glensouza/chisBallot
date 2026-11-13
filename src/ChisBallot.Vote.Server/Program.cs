@@ -27,6 +27,13 @@ builder.Services.AddSingleton(new AuditReader(connectionString));
 builder.Services.AddSingleton(new BallotCaster(connectionString, Log.Logger));
 builder.Services.AddSingleton(new DemoSlips(connectionString));
 
+// Guessing codes and asking for demo slips in bulk are slowed down per client address.
+// The counts live in memory only and are never logged. The address is the one Cloudflare
+// saw (the tunnel puts it in a header); on a laptop it is the connection's own.
+builder.Services.AddSingleton(new VoteLimits(
+    WrongCodes: new AttemptCounter(limit: 30, window: TimeSpan.FromMinutes(10)),
+    DemoSlips: new AttemptCounter(limit: 100, window: TimeSpan.FromMinutes(10))));
+
 WebApplication app = builder.Build();
 
 app.UseMiddleware<SecurityHeaders>();

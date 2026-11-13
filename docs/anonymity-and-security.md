@@ -64,7 +64,7 @@ sites.
 | The local-development admin sign-in is compiled out of release builds, and CI fails if it is not | `#if DEBUG` in `DevAdminHandler.cs` and `AdminAuth.cs`; the "Dev-only admin sign-in" step in `.github/workflows/build-and-deploy.yml` | Read the step; it searches the release DLL |
 | The admin site connects as `chisballot_admin`, the voting site as `chisballot_vote` | `src/ChisBallot.AppHost/AppHost.cs` locally; the server setup when deployed (not written yet) | Read them |
 
-Not covered yet: rate limiting, the bot check, and the revote shortcut.
+Not covered yet: the revote shortcut, and a bot check (see the note in section 3).
 
 Report problems as a GitHub issue on this repository.
 
@@ -91,7 +91,7 @@ refused.
 | Only a hash of each code is stored, so the database alone cannot reproduce a slip. | Code generation and the `ballot.voting_codes.code_hash` column |
 | Codes come from a cryptographic random number generator and are long enough that guessing is infeasible. The length is stated here once the code exists. | Code generation |
 | A code works once and only in its own election. | The single `UPDATE ... WHERE Used = 0` joined to an Open election in `docs/data-model.md`, and its tests |
-| Wrong guesses are rate-limited, and the ballot page is behind a Cloudflare Turnstile bot check. | **Not built yet.** |
+| Wrong guesses are rate-limited: after 30 refused codes from one address in 10 minutes the voting site answers 429 for that address until the window passes. The count is kept in memory only and is never logged. A code has 80 random bits, so guessing one is not feasible; the limit is there to slow a script down. There is no bot check on the ballot page: Cloudflare Turnstile would be the only third-party script on it, which is a cost to every voter for a risk that the code length and the limit already cover. | `AttemptCounter`, `VoteLimits` and the `/api/cast` endpoint in `VoteEndpoints.cs`; `AttemptCounterTests` |
 | Unused codes are deleted when an election closes. | `ElectionAdmin.CloseAsync`, `ballot.close_election` |
 
 ## 3. The code never leaks through the network or the logs
@@ -101,7 +101,7 @@ refused.
 | The voting link is `vote.chisballot.org/v/<slug>#<code>`. The slug only names the election. The part after `#` is never sent by the browser to any server, so it cannot appear in a web server log, a CDN log or a Referer header. | `src/ChisBallot.Vote/Pages/Ballot.razor` reads the code from the address fragment only, then removes it from the address bar |
 | The page sends the code only in the body of a POST to the site's own API. Never in a URL path or query string. | Client and API code; search for any use of the code in a URL |
 | No code, no code hash alongside anything else, and no ballot contents are logged. The cast-ballot request does not log IP addresses. | Serilog configuration and every log call on the cast path |
-| No analytics, tracking scripts or third-party fonts on the ballot page. The only third-party script is Turnstile, which sees the page visit but not the fragment. | The page's HTML and script tags |
+| No analytics, tracking scripts, third-party scripts or third-party fonts on the ballot page. | The page's HTML and script tags |
 | This repository configures no analytics, application-monitoring or request-logging service, and the sites' own request logging is switched off. | `ops/lxc/*.service`, `src/ChisBallot.Vote.Server/Program.cs` (search for `MinimumLevel`) |
 | Traffic is encrypted: Cloudflare terminates HTTPS in front of every site and a tunnel carries it to the server, and the database accepts connections only from the same machine. Cloudflare can see traffic in transit. | `ops/lxc/cloudflared.service`, the listen settings in `ops/lxc/setup.sh` |
 

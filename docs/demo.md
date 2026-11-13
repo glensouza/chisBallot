@@ -5,8 +5,8 @@ ballot open on their own phone, vote, and check the receipt. Demo mode
 exists for that, and it has to be safe, because the demo runs on the same
 site as real votes.
 
-**Status:** built, except the **Try the demo** button on the home page, the
-bot check and the rate limit on the demo-slip button. `/e/demo-tie` shows the
+**Status:** built. The home page has the **Try the demo** button while the demo is
+open, and the demo-slip button is rate limited. `/e/demo-tie` shows the
 result, and `/audit/demo-tie` the audit page with the recount. Nothing here changes how
 a real election works.
 
@@ -42,7 +42,7 @@ a real election works.
 | Issuing a code from the public site works only through one database procedure. It refuses any election that is not a demo, is not Open, or already has the demo limit of codes. | The procedure in the migration; the `chisballot_vote` grants (execute on that procedure, no insert on `VotingCodes`) |
 | Real elections have no public code-issuing endpoint at all. | Vote API routes |
 | Demo and real data never mix: every count, audit number and list is per election. | Queries all filter on the election id |
-| The demo-slip button is behind the same bot check and rate limit as the ballot page. | Vote API |
+| The demo-slip button is rate limited per client address (100 slips in 10 minutes), and the database stops at 300 slips per demo. | `VoteLimits` in `VoteEndpoints.cs`; `issue_demo_code` in `003_demo.sql` |
 | Creating and resetting demos exists only on the admin site, and reset refuses a non-demo election. | Admin API and its tests |
 | A demo follows every anonymity rule: no name, code or time on a ballot, and nothing logged. | `docs/anonymity-and-security.md` |
 
