@@ -54,7 +54,9 @@ talk wondering where it is going.
 - "Each member still gets a piece of paper. The difference is that the slip
   carries a one-time code instead of a list of names to circle."
 - "Paper ballots are printed and sitting on the table. If the internet is
-  down or anything looks wrong, we vote on paper on the spot."
+  down or anything looks wrong, we vote on paper on the spot. Anyone who
+  has already voted on the site keeps that vote; everyone else swaps their
+  slip for a paper ballot."
 - Read the callout: the only change is where the ballot is marked and how it
   is counted.
 
@@ -333,6 +335,16 @@ site. Only people we invite can create a vote or make its slips, and slips
 can be made only once per vote."
 
 **If asked "Does it use district accounts or student data?"** "Neither."
+
+**If asked "What happens if the site fails halfway through a vote?"** "I
+switch to paper right then. I close the vote on the site, so no more digital
+ballots come in; the ones already cast stay counted. Each member who has not
+voted hands their slip back to me and takes a paper ballot, one for one. We
+count the paper ballots by hand with two witnesses, on a count sheet that
+checks the numbers add up, and I announce both results. The paper count is
+the official record. The steps are in `docs/paper-fallback.md`, and the paper
+ballots and count sheet are printed from the vote's page on the admin site
+before the meeting."
 
 ---
 
