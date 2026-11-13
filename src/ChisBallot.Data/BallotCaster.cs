@@ -1,3 +1,4 @@
+using ChisBallot.Contracts;
 using Npgsql;
 using NpgsqlTypes;
 using Serilog;

@@ -29,6 +29,17 @@ else
         }
     }
 
+    @if (this.results is not null)
+    {
+        <h2>@(this.election.Status == 2 ? "Results" : "Running totals")</h2>
+        @if (this.election.Status == 1)
+        {
+            <p class="hint">Write-ins are shown as one combined count until the vote closes.</p>
+        }
+
+        <ResultsView Contests="this.results" />
+    }
+
     @if (this.turnout is not null)
     {
         <div class="chis-card">
@@ -40,6 +51,8 @@ else
             <p>This shows how many have voted, never what they chose.</p>
         </div>
     }
+
+    <p><a href="audit/@this.election.Slug">Audit page: check the numbers and find your receipt</a></p>
 }
 
 @code {
@@ -49,6 +62,7 @@ else
     private readonly CancellationTokenSource stop = new();
     private ElectionView? election;
     private TurnoutView? turnout;
+    private IReadOnlyList<ContestResult>? results;
     private bool notFound;
     private bool busy;
     private bool slipError;
@@ -103,6 +117,7 @@ else
             try
             {
                 this.turnout = await this.Http.GetFromJsonAsync<TurnoutView>($"api/elections/{Uri.EscapeDataString(this.Slug)}/turnout", this.stop.Token);
+                await this.LoadResultsAsync();
                 await this.InvokeAsync(this.StateHasChanged);
             }
             catch (HttpRequestException)
@@ -115,6 +130,22 @@ else
             }
         }
         while (await this.WaitAsync(timer));
+    }
+
+    // Results exist only for a Closed election, or an Open one with live results on;
+    // otherwise the server answers 404 and nothing is shown. A closed one is read once.
+    private async Task LoadResultsAsync()
+    {
+        if (this.election is null || this.election.Status == 0 || (this.election.Status == 1 && !this.election.ShowLiveResults) || (this.election.Status == 2 && this.results is not null))
+        {
+            return;
+        }
+
+        HttpResponseMessage response = await this.Http.GetAsync($"api/elections/{Uri.EscapeDataString(this.Slug)}/results", this.stop.Token);
+        if (response.IsSuccessStatusCode)
+        {
+            this.results = await response.Content.ReadFromJsonAsync<List<ContestResult>>(this.stop.Token);
+        }
     }
 
     private async Task<bool> WaitAsync(PeriodicTimer timer)

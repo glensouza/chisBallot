@@ -5,8 +5,8 @@ Every election has a public audit page at
 ballot was counted and where anyone, with no special tools, can recount the
 vote and check that the site matches this repository.
 
-**Status:** the application is not written yet. This page is the design the
-audit page must follow. `docs/anonymity-and-security.md` lists what an
+**Status:** built. The page follows this design; the commit shown is the one
+the deploy workflow passes in when it builds the voting site. `docs/anonymity-and-security.md` lists what an
 auditor should check in the code.
 
 ## What it shows

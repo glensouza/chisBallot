@@ -33,6 +33,44 @@ public static class VoteEndpoints
             return turnout is null ? Results.NotFound() : Results.Ok(turnout);
         });
 
+        // Counts per choice. The database answers only for a Closed election, or an
+        // Open one that turned live results on in Draft.
+        api.MapGet("/elections/{slug}/results", async (string slug, ElectionReader elections, ResultsReader results, CancellationToken cancellationToken) =>
+        {
+            ElectionView? election = await elections.FindBySlugAsync(slug, includeDrafts: false, cancellationToken);
+            if (election is null)
+            {
+                return Results.NotFound();
+            }
+
+            IReadOnlyList<ContestResult>? contests = await results.GetAsync(election, cancellationToken);
+            return contests is null ? Results.NotFound() : Results.Ok(contests);
+        });
+
+        // Every anonymous ballot, in receipt-code order. Closed elections only.
+        api.MapGet("/elections/{slug}/ballots", async (string slug, ElectionReader elections, AuditReader audit, CancellationToken cancellationToken) =>
+        {
+            ElectionView? election = await elections.FindBySlugAsync(slug, includeDrafts: false, cancellationToken);
+            if (election is null)
+            {
+                return Results.NotFound();
+            }
+
+            IReadOnlyList<PublishedBallot>? ballots = await audit.GetBallotsAsync(election.Id, cancellationToken);
+            return ballots is null ? Results.NotFound() : Results.Ok(ballots);
+        });
+
+        // The commit this build came from, set by the deploy workflow.
+        api.MapGet("/version", () =>
+        {
+            string? informational = typeof(VoteEndpoints).Assembly
+                .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+                .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+                .FirstOrDefault()?.InformationalVersion;
+            int plus = informational?.IndexOf('+') ?? -1;
+            return Results.Ok(new VersionView(plus < 0 ? null : informational![(plus + 1)..]));
+        });
+
         // Only for a demo election that is open; the database refuses anything else.
         api.MapPost("/elections/{slug}/demo-slip", async (string slug, ElectionReader elections, DemoSlips demoSlips, CancellationToken cancellationToken) =>
         {
