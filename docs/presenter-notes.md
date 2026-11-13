@@ -96,11 +96,10 @@ is counted at the end like an unused paper ballot."
 **Purpose:** let everyone vote once on a practice question. This does more
 than any other slide.
 
-**Before the meeting:** reset and open the demo on the admin site, load the
-demo page on your phone early (the free database can take up to a minute to
-wake), do one test vote, then reset again. Keep screenshots of each step in
-case the internet fails. The full script and the reset steps are in
-`docs/demo.md`.
+**Before the meeting:** reset the demo on the server (it opens by itself), load
+the demo page on your phone early, do one test vote, then reset again. Keep
+screenshots of each step in case the internet fails. The full script and the
+reset steps are in `docs/demo.md`.
 
 **Say:**
 - "This is a practice vote. Nothing counts. Please scan the code."
@@ -112,12 +111,13 @@ case the internet fails. The full script and the reset steps are in
   how many have voted, never what."
 - "I turned live results on for this practice. For a real vote I decide that
   first, and the default is off."
-- After closing, open the audit page: "Find your receipt code. Your code
-  never leaves your phone."
+- After closing the demo on the admin site, open the audit page: "Find your
+  receipt code. Your code never leaves your phone."
 - Press **Recount in your browser**: "Anyone can add the ballots up
   themselves. This does it here, and it matches."
 - Open the pre-filled tie demo: "If two people tie for the last seat, the
-  site does not pick. It says revote needed."
+  site does not pick. It says revote needed." On the admin site, **Make the
+  revote** starts that new vote in one step, with only the tied choices.
 
 **If it fails:** "This is exactly when we switch to paper." Walk through the
 screenshots and carry on.
@@ -291,7 +291,8 @@ anything where one person's choice matters."
 **Purpose:** remove cost and data worries.
 
 **Say:**
-- "It costs nothing to run. There is no budget request."
+- "It runs on a small server we already have. The only cost is the domain name.
+  There is no budget request."
 - "No names are stored. The roster never leaves this room."
 - "It is sized for a board like ours, and it can be reused for every vote we
   hold. Each vote gets a fresh set of slips, and past results stay on

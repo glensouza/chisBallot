@@ -72,12 +72,12 @@ a real election works.
 | 5:00 | Close the demo on the admin screen and open `vote.chisballot.org/audit/demo` | "Now it is closed. This is the audit page every election has. Slips issued, slips used, ballots counted. Used and counted match." |
 | 6:00 | Ask everyone to type their receipt code into the search box on the audit page | "Find your code. Your ballot is in the list and nobody can tell which one is yours. Your code never leaves your phone." |
 | 6:30 | Tap **Recount in your browser** | "Anyone can add up the ballots themselves. This does it here, and it matches." |
-| 6:45 | Open `/e/demo-tie` | "If two people tie for the last seat, the site does not pick for us. It says revote needed, and the tied choices go to a new vote." |
+| 6:45 | Open `/e/demo-tie` | "If two people tie for the last seat, the site does not pick for us. It says revote needed, and the tied choices go to a new vote, which I start with one button on the admin site." |
 
 **If something goes wrong**
 
-- Slow first load: "The free database was asleep. It wakes up once, and I
-  open real votes a few minutes early for this reason."
+- Slow first load: "The page downloads the voting app each time, on purpose,
+  so nobody ever runs an old copy. On school wifi it takes a few seconds."
 - No internet or a failure: "This is exactly when we switch to paper." Walk
   through the screenshots, then continue.
 - A silly write-in or answer: say "that is why write-ins are off unless I
