@@ -40,8 +40,8 @@ public sealed class ResultsRecord
 
         record.WriteAuditNumbers(turnout);
         record.WriteHowToCheck(fingerprint, commit, auditAddress);
-        record.WriteSignatures();
-        record.WriteFooters(election.Slug);
+        record.WriteSignatures(election);
+        record.WriteFooters(election, fingerprint);
         return record.pdf.ToBytes("Record of results: " + election.Name);
     }
 
@@ -224,11 +224,12 @@ public sealed class ResultsRecord
         this.Rule(18);
     }
 
-    private void WriteSignatures()
+    private void WriteSignatures(ElectionView election)
     {
         this.Ensure(270);
         this.Paragraph("Signatures", PdfFont.HelveticaBold, 13, 18);
-        this.Paragraph("The undersigned confirm that this record shows the result of the vote named above, as published by chisBallot.", PdfFont.Helvetica, 10, 14);
+        this.Paragraph("Vote: " + election.Name + " (" + election.Slug + ")", PdfFont.HelveticaBold, 11, 16);
+        this.Paragraph("The undersigned confirm that this record shows the result of this vote, as published by chisBallot.", PdfFont.Helvetica, 10, 14);
         this.y -= 6;
 
         foreach (string role in new[] { "Board chair", "Witness 1", "Witness 2" })
@@ -248,15 +249,39 @@ public sealed class ResultsRecord
         this.Paragraph("Paper ballots, if they were used alongside the site, are counted and recorded separately.", PdfFont.Helvetica, 9, 13);
     }
 
-    private void WriteFooters(string slug)
+    // Every page names the vote and carries the start of the fingerprint, so a loose page
+    // (the signatures above all) can always be matched to its vote.
+    private void WriteFooters(ElectionView election, string fingerprint)
     {
         int count = this.pdf.PageCount;
+        string id = "record " + fingerprint[..Math.Min(12, fingerprint.Length)];
         for (int page = 0; page < count; page++)
         {
             this.pdf.GoToPage(page);
-            this.pdf.Text(Left, 36, $"chisBallot record: {slug}", PdfFont.Helvetica, 8);
             string number = $"Page {page + 1} of {count}";
+            double room = Right - Left - HelveticaMetrics.Width(number, PdfFont.Helvetica, 8) - 12;
+            string left = Fit($"{election.Name} ({election.Slug}), {id}", PdfFont.Helvetica, 8, room);
+            this.pdf.Text(Left, 36, left, PdfFont.Helvetica, 8);
             this.pdf.Text(Right - HelveticaMetrics.Width(number, PdfFont.Helvetica, 8), 36, number, PdfFont.Helvetica, 8);
         }
+    }
+
+    // Keeps the end of the text (the id) and shortens the vote name in front of it if the line is too wide.
+    private static string Fit(string text, PdfFont font, double size, double width)
+    {
+        if (HelveticaMetrics.Width(text, font, size) <= width)
+        {
+            return text;
+        }
+
+        int split = text.LastIndexOf(", record ", StringComparison.Ordinal);
+        string tail = text[split..];
+        string head = text[..split];
+        while (head.Length > 1 && HelveticaMetrics.Width(head + "..." + tail, font, size) > width)
+        {
+            head = head[..^1];
+        }
+
+        return head + "..." + tail;
     }
 }
