@@ -102,6 +102,10 @@ else
             </p>
             <button class="chis-button" @onclick="this.DownloadJsonAsync">Download JSON</button>
             <button class="chis-button" @onclick="this.DownloadCsvAsync">Download CSV</button>
+            @if (this.downloadFailed)
+            {
+                <p class="audit-bad">The browser would not save the file.</p>
+            }
             <div class="receipt-list">
                 @foreach (PublishedBallot ballot in this.ballots)
                 {
@@ -155,6 +159,7 @@ else
     private string? commit;
     private bool notFound;
     private bool closed;
+    private bool downloadFailed;
     private string search = string.Empty;
     private List<(string Title, bool Matches, string Detail)>? recount;
 
@@ -266,7 +271,7 @@ else
             contests = this.election.Contests.Select(c => new { id = c.Id, title = c.Title, seats = c.Seats, choices = c.Choices.Select(ch => new { id = ch.Id, label = ch.Label }) }),
             ballots = this.ballots!.Select(b => new { receipt = b.Receipt, selections = b.Selections.Select(s => new { contest = s.ContestId, choice = s.ChoiceId, writeIn = s.WriteIn }) }),
         };
-        await this.Js.InvokeVoidAsync("chisSaveFile", $"{this.election.Slug}-ballots.json", "application/json", System.Text.Json.JsonSerializer.Serialize(file, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        await this.SaveAsync($"{this.election.Slug}-ballots.json", "application/json", System.Text.Json.JsonSerializer.Serialize(file, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
     }
 
     private async Task DownloadCsvAsync()
@@ -287,7 +292,20 @@ else
             }
         }
 
-        await this.Js.InvokeVoidAsync("chisSaveFile", $"{this.election!.Slug}-ballots.csv", "text/csv", csv.ToString());
+        await this.SaveAsync($"{this.election!.Slug}-ballots.csv", "text/csv", csv.ToString());
+    }
+
+    private async Task SaveAsync(string name, string mime, string text)
+    {
+        this.downloadFailed = false;
+        try
+        {
+            await this.Js.InvokeVoidAsync("chisSaveFile", name, mime, text);
+        }
+        catch (JSException)
+        {
+            this.downloadFailed = true;
+        }
     }
 
     private static string Quote(string value) => "\"" + value.Replace("\"", "\"\"") + "\"";
