@@ -64,7 +64,7 @@ sites.
 | The local-development admin sign-in is compiled out of release builds, and CI fails if it is not | `#if DEBUG` in `DevAdminHandler.cs` and `AdminAuth.cs`; the "Dev-only admin sign-in" step in `.github/workflows/build-and-deploy.yml` | Read the step; it searches the release DLL |
 | The admin site connects as `chisballot_admin`, the voting site as `chisballot_vote` | `src/ChisBallot.AppHost/AppHost.cs` locally; the server setup when deployed (not written yet) | Read them |
 
-Not covered yet: the revote shortcut, and a bot check (see the note in section 3).
+Not covered yet: a bot check (see the note in section 3).
 
 Report problems as a GitHub issue on this repository.
 
