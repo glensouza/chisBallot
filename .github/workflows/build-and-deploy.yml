@@ -7,8 +7,13 @@ name: Build, test and deploy
 #
 # The tests run on the server's pull-request runner, inside a container (the
 # .NET SDK image) next to a throwaway PostgreSQL container, as the runner's
-# unprivileged user with rootless Docker. Deploying builds on the production runner (the server itself) and puts the
-# result into service with the deploy script in ops/lxc. The deploy job waits
+# unprivileged user with rootless Docker.
+#
+# The sites are compiled once. On main, the test job publishes what it just built
+# and tested into one compressed bundle (a workflow artifact, kept one day and
+# deleted after a successful deploy). The deploy job on the production runner only
+# downloads that bundle, checks its checksum and puts it into service with the
+# deploy script in ops/lxc; it never compiles, so the server needs no SDK. It waits
 # for a reviewer's approval in the "production" environment, and only main can
 # deploy to it. Pull requests never reach the production runner.
 on:
@@ -50,7 +55,8 @@ jobs:
       DOTNET_NOLOGO: "1"
       CHISBALLOT_TEST_POSTGRES: Host=postgres;Username=postgres;Password=test-only
     outputs:
-      deploy: ${{ steps.changes.outputs.deploy }}
+      bundle_sha256: ${{ steps.bundle.outputs.sha256 }}
+      bundle_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -60,7 +66,7 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build --no-restore --configuration Release -p:SourceRevisionId="$GITHUB_SHA"
 
       - name: Test
         run: dotnet test --no-build --configuration Release
@@ -91,6 +97,30 @@ jobs:
             echo "deploy=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # The one compile: publish from the build that was just tested, without
+      # building again, and keep it as a single file for the deploy job.
+      - name: Publish the sites once, for the deploy
+        id: bundle
+        if: steps.changes.outputs.deploy == 'true' && github.event_name != 'pull_request'
+        run: |
+          rm -rf release chisballot-release.tgz
+          dotnet publish src/ChisBallot.Vote.Server --configuration Release --no-build --output release/vote
+          dotnet publish src/ChisBallot.Admin --configuration Release --no-build --output release/admin
+          dotnet publish src/ChisBallot.Migrator --configuration Release --no-build --output release/migrator
+          tar -C release -czf chisballot-release.tgz vote admin migrator
+          echo "sha256=$(sha256sum chisballot-release.tgz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Keep the bundle until it is deployed
+        id: upload
+        if: steps.bundle.outputs.sha256 != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: chisballot-release.tgz
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
+
   deploy:
     name: Deploy to the server
     needs: test
@@ -98,21 +128,35 @@ jobs:
       github.repository == 'glensouza/chisBallot'
       && github.ref == 'refs/heads/main'
       && github.event_name != 'pull_request'
-      && needs.test.outputs.deploy == 'true'
+      && needs.test.outputs.bundle_sha256 != ''
     runs-on: [self-hosted, prod]
     environment: production
-    env:
-      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
-      DOTNET_NOLOGO: "1"
+    permissions:
+      contents: read
+      actions: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: ${{ runner.temp }}/bundle
 
-      - name: Build
+      - name: Check the bundle and unpack it
         run: |
+          cd "$RUNNER_TEMP/bundle"
+          echo "${{ needs.test.outputs.bundle_sha256 }}  chisballot-release.tgz" | sha256sum -c -
           rm -rf "$RUNNER_TEMP/release"
-          dotnet publish src/ChisBallot.Vote.Server --configuration Release -p:SourceRevisionId="$GITHUB_SHA" --output "$RUNNER_TEMP/release/vote"
-          dotnet publish src/ChisBallot.Admin --configuration Release --output "$RUNNER_TEMP/release/admin"
-          dotnet publish src/ChisBallot.Migrator --configuration Release --output "$RUNNER_TEMP/release/migrator"
+          mkdir "$RUNNER_TEMP/release"
+          tar -xzf chisballot-release.tgz -C "$RUNNER_TEMP/release" --no-same-owner
 
       - name: Deploy
         run: sudo /usr/local/sbin/chisballot-deploy "$RUNNER_TEMP/release"
+
+      # Not needed any more once it is in service. If the deploy failed it stays
+      # (for a day) so the job can be run again.
+      - name: Delete the bundle
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl -fsS -X DELETE -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json"             "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/${{ needs.test.outputs.bundle_id }}"
+          rm -rf "$RUNNER_TEMP/bundle" "$RUNNER_TEMP/release"
