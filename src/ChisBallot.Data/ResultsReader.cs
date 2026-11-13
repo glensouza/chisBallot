@@ -1,7 +1,7 @@
+namespace ChisBallot.Data;
+
 using ChisBallot.Contracts;
 using Npgsql;
-
-namespace ChisBallot.Data;
 
 /// <summary>
 /// Reads vote counts through ballot.get_results, which the database only

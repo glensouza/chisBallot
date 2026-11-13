@@ -1,7 +1,7 @@
+namespace ChisBallot.Tests;
+
 using ChisBallot.Data;
 using Npgsql;
-
-namespace ChisBallot.Tests;
 
 /// <summary>
 /// Builds an election the way the admin site would: as the admin database

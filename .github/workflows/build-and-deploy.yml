@@ -66,6 +66,10 @@ jobs:
       - name: Restore
         run: dotnet restore
 
+      # The rules in .editorconfig: explicit types, this., namespace first, braces, no unused usings.
+      - name: Code style
+        run: dotnet format style --verify-no-changes --severity warn --no-restore
+
       - name: Build
         run: dotnet build --no-restore --configuration Release -p:SourceRevisionId="$GITHUB_SHA"
 

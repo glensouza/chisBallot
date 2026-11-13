@@ -1,10 +1,10 @@
+namespace ChisBallot.Tests;
+
 using System.Security.Cryptography;
 using ChisBallot.Data;
 using Npgsql;
 using Serilog;
 using Testcontainers.PostgreSql;
-
-namespace ChisBallot.Tests;
 
 /// <summary>
 /// One real PostgreSQL in a container for the whole test run, migrated with
@@ -87,10 +87,4 @@ public sealed class DatabaseFixture : IAsyncLifetime
     {
         return "Aa1" + Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
     }
-}
-
-[CollectionDefinition(Name)]
-public sealed class DatabaseCollection : ICollectionFixture<DatabaseFixture>
-{
-    public const string Name = "database";
 }

@@ -1,7 +1,7 @@
+namespace ChisBallot.Data;
+
 using ChisBallot.Contracts;
 using Npgsql;
-
-namespace ChisBallot.Data;
 
 /// <summary>
 /// Reads the parts of an election that are not secret: what the ballot page

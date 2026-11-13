@@ -1,6 +1,6 @@
-using Npgsql;
-
 namespace ChisBallot.Data;
+
+using Npgsql;
 
 /// <summary>
 /// Hands out a slip for a demo election only. The database function refuses

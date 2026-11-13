@@ -1,7 +1,7 @@
+namespace ChisBallot.Tests;
+
 using ChisBallot.Data;
 using Npgsql;
-
-namespace ChisBallot.Tests;
 
 [Collection(DatabaseCollection.Name)]
 public sealed class CastBallotTests(DatabaseFixture database)
@@ -23,7 +23,7 @@ public sealed class CastBallotTests(DatabaseFixture database)
         Assert.NotNull(first.ReceiptCode);
         Assert.Equal(CastStatus.CodeRefused, second.Status);
         Assert.Null(second.ReceiptCode);
-        Assert.Equal(1, await CountAsync("SELECT COUNT(*) FROM ballot.ballots WHERE election_id = @e", seed.ElectionId));
+        Assert.Equal(1, await this.CountAsync("SELECT COUNT(*) FROM ballot.ballots WHERE election_id = @e", seed.ElectionId));
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class CastBallotTests(DatabaseFixture database)
     {
         ElectionSeed draft = await ElectionSeed.CreateAsync(database, open: false);
         ElectionSeed closed = await ElectionSeed.CreateAsync(database);
-        await CloseAsync(closed.ElectionId);
+        await this.CloseAsync(closed.ElectionId);
 
         CastOutcome notOpen = await database.Caster.CastAsync(draft.ElectionId, draft.Codes[0], Pick(draft, 0), []);
         CastOutcome afterClose = await database.Caster.CastAsync(closed.ElectionId, closed.Codes[0], Pick(closed, 0), []);
@@ -79,7 +79,7 @@ public sealed class CastBallotTests(DatabaseFixture database)
         CastOutcome first = await database.Caster.CastAsync(seed.ElectionId, seed.Codes[0], Pick(seed, 0), [new WriteInEntry(seed.ContestId, "  Pat   LEE ")]);
         CastOutcome second = await database.Caster.CastAsync(seed.ElectionId, seed.Codes[1], [], [new WriteInEntry(seed.ContestId, "pat lee")]);
         CastOutcome invalid = await database.Caster.CastAsync(seed.ElectionId, seed.Codes[2], [], [new WriteInEntry(seed.ContestId, "<script>")]);
-        await CloseAsync(seed.ElectionId);
+        await this.CloseAsync(seed.ElectionId);
 
         Assert.Equal(CastStatus.SelectionsRefused, overLimit.Status);
         Assert.Equal(CastStatus.Cast, first.Status);
@@ -143,8 +143,8 @@ public sealed class CastBallotTests(DatabaseFixture database)
         ElectionSeed seed = await ElectionSeed.CreateAsync(database);
         await database.Caster.CastAsync(seed.ElectionId, seed.Codes[0], Pick(seed, 0), []);
 
-        foreach (string sql in new[]
-        {
+        string[] statements =
+        [
             "SELECT COUNT(*) FROM ballot.ballots",
             "SELECT COUNT(*) FROM ballot.ballot_selections",
             "SELECT COUNT(*) FROM ballot.ballot_write_ins",
@@ -152,7 +152,8 @@ public sealed class CastBallotTests(DatabaseFixture database)
             "UPDATE ballot.voting_codes SET used = false",
             "DELETE FROM ballot.ballots",
             "UPDATE ballot.elections SET status = 2",
-        })
+        ];
+        foreach (string sql in statements)
         {
             await AssertDeniedAsync(database.VoteConnectionString, sql);
         }
@@ -161,14 +162,15 @@ public sealed class CastBallotTests(DatabaseFixture database)
     [Fact]
     public async Task The_admin_site_cannot_read_ballots_or_codes()
     {
-        foreach (string sql in new[]
-        {
+        string[] statements =
+        [
             "SELECT COUNT(*) FROM ballot.ballots",
             "SELECT COUNT(*) FROM ballot.ballot_selections",
             "SELECT COUNT(*) FROM ballot.ballot_write_ins",
             "SELECT COUNT(*) FROM ballot.voting_codes",
             "DELETE FROM ballot.voting_codes",
-        })
+        ];
+        foreach (string sql in statements)
         {
             await AssertDeniedAsync(database.AdminConnectionString, sql);
         }
@@ -184,7 +186,7 @@ public sealed class CastBallotTests(DatabaseFixture database)
         Assert.Equal("CB001", whileOpen.SqlState);
         await Assert.ThrowsAsync<PostgresException>(() => ReadResultsAsync(database.AdminConnectionString, seed.ElectionId));
 
-        await CloseAsync(seed.ElectionId);
+        await this.CloseAsync(seed.ElectionId);
 
         List<(Guid? Choice, string? WriteIn, int Votes)> results = await ReadResultsAsync(database.VoteConnectionString, seed.ElectionId);
         Assert.Equal(1, results.Single(row => row.Choice == seed.ChoiceIds[1]).Votes);
@@ -238,7 +240,7 @@ public sealed class CastBallotTests(DatabaseFixture database)
         await AssertFailsAsync(connection, "UPDATE ballot.elections SET is_demo = true WHERE id = @e", seed.ElectionId);
         await AssertFailsAsync(connection, "UPDATE ballot.elections SET status = 0 WHERE id = @e", seed.ElectionId);
 
-        await CloseAsync(seed.ElectionId);
+        await this.CloseAsync(seed.ElectionId);
 
         await AssertFailsAsync(connection, "UPDATE ballot.elections SET status = 1 WHERE id = @e", seed.ElectionId);
         await AssertFailsAsync(connection, "UPDATE ballot.elections SET name = 'Changed' WHERE id = @e", seed.ElectionId);
@@ -250,10 +252,10 @@ public sealed class CastBallotTests(DatabaseFixture database)
         ElectionSeed seed = await ElectionSeed.CreateAsync(database, codeCount: 3);
         await database.Caster.CastAsync(seed.ElectionId, seed.Codes[0], Pick(seed, 0), []);
 
-        await CloseAsync(seed.ElectionId);
+        await this.CloseAsync(seed.ElectionId);
 
-        Assert.Equal(1, await CountAsync("SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = @e", seed.ElectionId));
-        Assert.Equal(1, await CountAsync("SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = @e AND used", seed.ElectionId));
+        Assert.Equal(1, await this.CountAsync("SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = @e", seed.ElectionId));
+        Assert.Equal(1, await this.CountAsync("SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = @e AND used", seed.ElectionId));
     }
 
     private async Task CloseAsync(Guid electionId)

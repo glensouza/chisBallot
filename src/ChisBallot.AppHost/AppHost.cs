@@ -10,8 +10,6 @@
 // throwaway container that is deleted when you stop; nothing deployed uses
 // them.
 
-using Aspire.Hosting.ApplicationModel;
-
 const string VotePassword = "Local-Vote-Pw-1!";
 const string AdminPassword = "Local-Admin-Pw-1!";
 

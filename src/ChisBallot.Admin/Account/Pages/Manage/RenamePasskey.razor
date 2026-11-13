@@ -84,7 +84,7 @@
     private async Task Rename()
     {
         passkey!.Name = Input.Name;
-        var result = await UserManager.AddOrUpdatePasskeyAsync(user!, passkey);
+        IdentityResult result = await UserManager.AddOrUpdatePasskeyAsync(user!, passkey);
         if (!result.Succeeded)
         {
             IdentityStatusMessage = "Error: The passkey could not be updated.";

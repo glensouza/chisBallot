@@ -1,6 +1,6 @@
-using Microsoft.AspNetCore.Components;
-
 namespace ChisBallot.Admin.Account;
+
+using Microsoft.AspNetCore.Components;
 
 internal sealed class IdentityRedirectManager(NavigationManager navigationManager)
 {
@@ -22,12 +22,12 @@ internal sealed class IdentityRedirectManager(NavigationManager navigationManage
 
     public void RedirectTo(string uri, Dictionary<string, object?> queryParameters)
     {
-        var uriWithoutQuery = navigationManager.ToAbsoluteUri(uri).GetLeftPart(UriPartial.Path);
-        var newUri = navigationManager.GetUriWithQueryParameters(uriWithoutQuery, queryParameters);
-        RedirectTo(newUri);
+        string uriWithoutQuery = navigationManager.ToAbsoluteUri(uri).GetLeftPart(UriPartial.Path);
+        string newUri = navigationManager.GetUriWithQueryParameters(uriWithoutQuery, queryParameters);
+        this.RedirectTo(newUri);
     }
 
     private string CurrentPath => navigationManager.ToAbsoluteUri(navigationManager.Uri).GetLeftPart(UriPartial.Path);
 
-    public void RedirectToCurrentPage() => RedirectTo(CurrentPath);
+    public void RedirectToCurrentPage() => this.RedirectTo(this.CurrentPath);
 }

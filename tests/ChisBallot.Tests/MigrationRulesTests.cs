@@ -1,7 +1,7 @@
+namespace ChisBallot.Tests;
+
 using System.Reflection;
 using System.Text.RegularExpressions;
-
-namespace ChisBallot.Tests;
 
 /// <summary>
 /// The rules in docs/migrations.md, enforced. Every release must work with the

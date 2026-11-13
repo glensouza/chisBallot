@@ -1,7 +1,7 @@
+namespace ChisBallot.Data;
+
 using System.Security.Cryptography;
 using System.Text;
-
-namespace ChisBallot.Data;
 
 /// <summary>
 /// The code printed on a slip. Sixteen characters from an alphabet without

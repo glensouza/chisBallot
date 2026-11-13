@@ -1,6 +1,6 @@
-using Npgsql;
-
 namespace ChisBallot.Data;
+
+using Npgsql;
 
 /// <summary>
 /// Makes the two demo elections: <c>demo</c>, open with nothing in it so a room

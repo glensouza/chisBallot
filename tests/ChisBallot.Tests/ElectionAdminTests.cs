@@ -1,9 +1,9 @@
+namespace ChisBallot.Tests;
+
 using ChisBallot.Contracts;
 using ChisBallot.Data;
 using Npgsql;
 using Serilog;
-
-namespace ChisBallot.Tests;
 
 [Collection(DatabaseCollection.Name)]
 public sealed class ElectionAdminTests(DatabaseFixture database)
@@ -30,7 +30,7 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
     {
         string slug = NewSlug();
 
-        CreateElectionResponse response = await Admin().CreateAsync(Request(slug));
+        CreateElectionResponse response = await this.Admin().CreateAsync(Request(slug));
 
         Assert.NotNull(response.Id);
         ElectionView? election = await new ElectionReader(database.AdminConnectionString).FindBySlugAsync(slug, includeDrafts: true);
@@ -48,10 +48,10 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
     public async Task A_bad_request_or_a_used_address_is_refused_with_a_reason()
     {
         string slug = NewSlug();
-        await Admin().CreateAsync(Request(slug));
+        await this.Admin().CreateAsync(Request(slug));
 
-        CreateElectionResponse used = await Admin().CreateAsync(Request(slug));
-        CreateElectionResponse bad = await Admin().CreateAsync(Request("Not A Slug"));
+        CreateElectionResponse used = await this.Admin().CreateAsync(Request(slug));
+        CreateElectionResponse bad = await this.Admin().CreateAsync(Request("Not A Slug"));
 
         Assert.Null(used.Id);
         Assert.Contains("already used", used.Error);
@@ -63,20 +63,20 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
     public async Task A_failed_create_leaves_nothing_behind()
     {
         string slug = NewSlug();
-        await Admin().CreateAsync(Request(slug));
-        int before = await CountAsync("SELECT COUNT(*) FROM ballot.contests");
+        await this.Admin().CreateAsync(Request(slug));
+        int before = await this.CountAsync("SELECT COUNT(*) FROM ballot.contests");
 
-        await Admin().CreateAsync(Request(slug));
+        await this.Admin().CreateAsync(Request(slug));
 
-        Assert.Equal(before, await CountAsync("SELECT COUNT(*) FROM ballot.contests"));
+        Assert.Equal(before, await this.CountAsync("SELECT COUNT(*) FROM ballot.contests"));
     }
 
     [Fact]
     public async Task A_draft_without_slips_cannot_be_opened()
     {
-        CreateElectionResponse created = await Admin().CreateAsync(Request(NewSlug()));
+        CreateElectionResponse created = await this.Admin().CreateAsync(Request(NewSlug()));
 
-        Assert.False(await Admin().OpenAsync(created.Id!.Value));
+        Assert.False(await this.Admin().OpenAsync(created.Id!.Value));
     }
 
     [Fact]
@@ -84,11 +84,11 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
     {
         ElectionSeed seed = await ElectionSeed.CreateAsync(database, open: false);
 
-        Assert.True(await Admin().OpenAsync(seed.ElectionId));
-        Assert.False(await Admin().OpenAsync(seed.ElectionId));
-        Assert.True(await Admin().CloseAsync(seed.ElectionId));
-        Assert.False(await Admin().CloseAsync(seed.ElectionId));
-        Assert.False(await Admin().OpenAsync(seed.ElectionId));
+        Assert.True(await this.Admin().OpenAsync(seed.ElectionId));
+        Assert.False(await this.Admin().OpenAsync(seed.ElectionId));
+        Assert.True(await this.Admin().CloseAsync(seed.ElectionId));
+        Assert.False(await this.Admin().CloseAsync(seed.ElectionId));
+        Assert.False(await this.Admin().OpenAsync(seed.ElectionId));
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
     {
         ElectionSeed seed = await ElectionSeed.CreateAsync(database, open: false);
 
-        Assert.False(await Admin().CloseAsync(seed.ElectionId));
+        Assert.False(await this.Admin().CloseAsync(seed.ElectionId));
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
 
         Assert.Null(await results.GetAsync(election));
 
-        await Admin().CloseAsync(seed.ElectionId);
+        await this.Admin().CloseAsync(seed.ElectionId);
 
         IReadOnlyList<ContestResult>? closed = await results.GetAsync(election);
         ContestResult contest = Assert.Single(closed!);
@@ -128,18 +128,18 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
     [Fact]
     public async Task Slips_are_made_once_and_only_their_hashes_are_stored()
     {
-        CreateElectionResponse created = await Admin().CreateAsync(Request(NewSlug()));
+        CreateElectionResponse created = await this.Admin().CreateAsync(Request(NewSlug()));
         Guid id = created.Id!.Value;
 
-        IReadOnlyList<string>? codes = await Admin().IssueSlipsAsync(id, 5);
+        IReadOnlyList<string>? codes = await this.Admin().IssueSlipsAsync(id, 5);
 
         Assert.NotNull(codes);
         Assert.Equal(5, codes.Count);
         Assert.Equal(5, codes.Distinct().Count());
-        Assert.Equal(5, await CountAsync($"SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = '{id}'"));
-        Assert.Equal(5, await CountAsync($"SELECT codes_issued FROM ballot.elections WHERE id = '{id}'"));
-        Assert.Null(await Admin().IssueSlipsAsync(id, 5));
-        Assert.Equal(5, await CountAsync($"SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = '{id}'"));
+        Assert.Equal(5, await this.CountAsync($"SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = '{id}'"));
+        Assert.Equal(5, await this.CountAsync($"SELECT codes_issued FROM ballot.elections WHERE id = '{id}'"));
+        Assert.Null(await this.Admin().IssueSlipsAsync(id, 5));
+        Assert.Equal(5, await this.CountAsync($"SELECT COUNT(*) FROM ballot.voting_codes WHERE election_id = '{id}'"));
     }
 
     [Fact]
@@ -147,9 +147,9 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
     {
         ElectionSeed seed = await ElectionSeed.CreateAsync(database, codeCount: 0, open: false);
         // The seed marks no slips issued for a zero count, so the draft is ready for slips.
-        IReadOnlyList<string> codes = (await Admin().IssueSlipsAsync(seed.ElectionId, 2))!;
+        IReadOnlyList<string> codes = (await this.Admin().IssueSlipsAsync(seed.ElectionId, 2))!;
 
-        Assert.True(await Admin().OpenAsync(seed.ElectionId));
+        Assert.True(await this.Admin().OpenAsync(seed.ElectionId));
         BallotSelection[] pick = [new BallotSelection(seed.ContestId, seed.ChoiceIds[0])];
         Assert.Equal(CastStatus.Cast, (await database.Caster.CastAsync(seed.ElectionId, codes[0], pick, [])).Status);
         Assert.Equal(CastStatus.CodeRefused, (await database.Caster.CastAsync(seed.ElectionId, codes[0], pick, [])).Status);
@@ -162,10 +162,10 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
     [InlineData(SlipLimits.Max + 1)]
     public async Task A_slip_count_out_of_range_is_refused(int count)
     {
-        CreateElectionResponse created = await Admin().CreateAsync(Request(NewSlug()));
+        CreateElectionResponse created = await this.Admin().CreateAsync(Request(NewSlug()));
 
-        Assert.Null(await Admin().IssueSlipsAsync(created.Id!.Value, count));
-        Assert.Equal(0, await CountAsync($"SELECT codes_issued FROM ballot.elections WHERE id = '{created.Id}'"));
+        Assert.Null(await this.Admin().IssueSlipsAsync(created.Id!.Value, count));
+        Assert.Equal(0, await this.CountAsync($"SELECT codes_issued FROM ballot.elections WHERE id = '{created.Id}'"));
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public sealed class ElectionAdminTests(DatabaseFixture database)
     {
         ElectionSeed seed = await ElectionSeed.CreateAsync(database, codeCount: 2);
 
-        Assert.Null(await Admin().IssueSlipsAsync(seed.ElectionId, 3));
+        Assert.Null(await this.Admin().IssueSlipsAsync(seed.ElectionId, 3));
     }
 
     private async Task<int> CountAsync(string sql)

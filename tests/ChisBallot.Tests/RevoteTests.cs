@@ -1,9 +1,9 @@
+namespace ChisBallot.Tests;
+
 using ChisBallot.Admin;
 using ChisBallot.Contracts;
 using ChisBallot.Data;
 using Serilog;
-
-namespace ChisBallot.Tests;
 
 [Collection(DatabaseCollection.Name)]
 public sealed class RevoteTests(DatabaseFixture database)
@@ -22,7 +22,7 @@ public sealed class RevoteTests(DatabaseFixture database)
     [Fact]
     public async Task A_tie_is_followed_by_a_draft_with_only_the_tied_choices_and_the_open_seats()
     {
-        ElectionView tie = await TieDemoAsync();
+        ElectionView tie = await this.TieDemoAsync();
         AdminViews views = this.Views();
 
         CreateElectionResponse response = await views.StartRevoteAsync(tie.Id);
@@ -51,7 +51,7 @@ public sealed class RevoteTests(DatabaseFixture database)
     [Fact]
     public async Task A_vote_has_one_revote()
     {
-        ElectionView tie = await TieDemoAsync();
+        ElectionView tie = await this.TieDemoAsync();
         AdminViews views = this.Views();
         await views.StartRevoteAsync(tie.Id);
 
@@ -77,7 +77,7 @@ public sealed class RevoteTests(DatabaseFixture database)
     [Fact]
     public async Task Resetting_the_demos_also_removes_a_revote_made_from_them()
     {
-        ElectionView tie = await TieDemoAsync();
+        ElectionView tie = await this.TieDemoAsync();
         await this.Views().StartRevoteAsync(tie.Id);
 
         await DemoSeed.ResetAsync(database.OwnerConnectionString);

@@ -1,8 +1,9 @@
+namespace ChisBallot.Vote.Server;
+
 using ChisBallot.Contracts;
 using ChisBallot.Data;
+using System.Reflection;
 using System.Text.Json;
-
-namespace ChisBallot.Vote.Server;
 
 /// <summary>
 /// The public voting API. It exposes a ballot, turnout, and casting a
@@ -63,10 +64,7 @@ public static class VoteEndpoints
         // The commit this build came from, set by the deploy workflow.
         api.MapGet("/version", () =>
         {
-            string? informational = typeof(VoteEndpoints).Assembly
-                .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
-                .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
-                .FirstOrDefault()?.InformationalVersion;
+            string? informational = typeof(VoteEndpoints).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
             int plus = informational?.IndexOf('+') ?? -1;
             return Results.Ok(new VersionView(plus < 0 ? null : informational![(plus + 1)..]));
         });
@@ -141,6 +139,3 @@ public static class VoteEndpoints
     private static string ClientAddress(HttpContext http) =>
         http.Request.Headers["CF-Connecting-IP"].FirstOrDefault() ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 }
-
-/// <summary>The two limits the public API enforces, per client address.</summary>
-public sealed record VoteLimits(AttemptCounter WrongCodes, AttemptCounter DemoSlips);

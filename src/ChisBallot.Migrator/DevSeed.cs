@@ -1,8 +1,8 @@
+namespace ChisBallot.Migrator;
+
 using ChisBallot.Data;
 using Npgsql;
 using Serilog;
-
-namespace ChisBallot.Migrator;
 
 /// <summary>
 /// A practice election for local development: a pick-three question with a

@@ -1,11 +1,9 @@
+namespace ChisBallot.Data;
+
 using System.Reflection;
 using Npgsql;
 using NpgsqlTypes;
 using Serilog;
-
-namespace ChisBallot.Data;
-
-public sealed record DatabaseUserPasswords(string Vote, string Admin);
 
 /// <summary>
 /// Applies the embedded SQL scripts in name order and records each one in

@@ -1,7 +1,7 @@
+namespace ChisBallot.Admin;
+
 using ChisBallot.Contracts;
 using ChisBallot.Data;
-
-namespace ChisBallot.Admin;
 
 /// <summary>Puts together what the vote page shows: the setup, turnout and, when allowed, results.</summary>
 public sealed class AdminViews(ElectionReader elections, ResultsReader results, ElectionAdmin admin)
