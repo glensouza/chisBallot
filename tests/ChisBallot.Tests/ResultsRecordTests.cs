@@ -131,6 +131,29 @@ public sealed partial class ResultsRecordTests
     }
 
     [Fact]
+    public void Every_page_names_the_vote_and_the_signatures_name_it_too()
+    {
+        ResultEntry[] entries = [.. Enumerable.Range(1, 60).Select(i => new ResultEntry("Choice number " + i, i, false, false))];
+        byte[] pdf = Build([Contest("Long one", 1, entries), Contest("Another", 1, entries)]);
+        string file = Encoding.ASCII.GetString(pdf);
+
+        string[] pages = [.. Regex.Matches(file, "stream\n(.*?)endstream", RegexOptions.Singleline).Select(m => TextOf(Encoding.ASCII.GetBytes(m.Groups[1].Value)))];
+
+        Assert.True(pages.Length >= 3);
+        Assert.All(pages, page => Assert.Contains("Spring council vote (spring), record aaaaaaaaaaaa", page, StringComparison.Ordinal));
+        Assert.Contains("Vote: Spring council vote (spring)", pages.Single(page => page.Contains("Board chair", StringComparison.Ordinal)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_very_long_vote_name_is_shortened_in_the_footer_but_keeps_the_record_id()
+    {
+        string name = new('W', 200);
+        string text = TextOf(Build([Contest("Q", 1, new ResultEntry("Yes", 1, false, true))], Election(name)));
+
+        Assert.Contains("..., record aaaaaaaaaaaa", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_very_long_name_is_wrapped_instead_of_running_off_the_page()
     {
         string name = new('W', 200);
