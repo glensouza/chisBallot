@@ -1,7 +1,6 @@
 @page "/"
 @attribute [Authorize(Policy = AdminAuth.PolicyName)]
 @inject ElectionReader Elections
-@inject AuthenticationStateProvider Authentication
 
 <PageTitle>chisBallot admin</PageTitle>
 
@@ -47,6 +46,9 @@ else
 }
 
 @code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
     private string? me;
     private IReadOnlyList<ElectionSummary>? elections;
     private string? error;
@@ -55,7 +57,7 @@ else
     {
         try
         {
-            AuthenticationState state = await this.Authentication.GetAuthenticationStateAsync();
+            AuthenticationState state = await this.AuthenticationState!;
             this.me = state.User.Identity?.Name;
             this.elections = await this.Elections.ListAsync();
         }

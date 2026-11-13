@@ -31,11 +31,6 @@ WebApplication app = builder.Build();
 
 app.UseMiddleware<SecurityHeaders>();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseWebAssemblyDebugging();
-}
-
 app.MapStaticAssets();
 app.MapVoteEndpoints();
 app.MapFallbackToFile("index.html");
