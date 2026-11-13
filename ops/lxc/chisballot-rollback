@@ -1,0 +1,88 @@
+#!/bin/sh
+# Puts the sites back the way they were before a deploy: the previous programs,
+# the ballot database and the admin accounts file as the deploy found them.
+# Run as root.
+#
+#   chisballot-rollback [--force] [snapshot]     by hand; the newest snapshot by default
+#   chisballot-rollback --auto <snapshot>        used by chisballot-deploy when a new
+#                                                release does not come up healthy
+#
+# Snapshots are in /var/lib/chisballot-deploy/snapshots, one per deploy, newest
+# three kept. The database is restored only if that cannot lose a real vote: no real
+# vote is open, and the real ballots and elections now are exactly those in the
+# snapshot. By hand, a refusal can be overridden with --force, which discards
+# everything since the snapshot. With --auto a refusal is not an error: the code goes
+# back and the database stays as it is (every release must work with the schema of the
+# one before it, see docs/migrations.md).
+set -eu
+
+. /usr/local/lib/chisballot/chisballot-lib.sh
+
+AUTO=0
+FORCE=0
+STAMP=
+for arg in "$@"; do
+    case "$arg" in
+        --auto) AUTO=1 ;;
+        --force) FORCE=1 ;;
+        -*) echo "unknown option $arg" >&2; exit 2 ;;
+        *) STAMP=$arg ;;
+    esac
+done
+[ -n "$STAMP" ] || STAMP=$(ls -1t "$SNAPSHOTS" 2>/dev/null | head -n 1)
+[ -n "$STAMP" ] && [ -d "$SNAPSHOTS/$STAMP" ] || { echo "No snapshot to go back to." >&2; exit 2; }
+DIR=$SNAPSHOTS/$STAMP
+
+prev_vote=$(cat "$DIR/previous_vote" 2>/dev/null || true)
+prev_admin=$(cat "$DIR/previous_admin" 2>/dev/null || true)
+if [ -z "$prev_vote" ] || [ -z "$prev_admin" ]; then
+    echo "The snapshot has no previous release (this was the first deploy), so there is nothing to go back to." >&2
+    exit 2
+fi
+
+restore=0
+if [ -f "$DIR/ballot.dump" ]; then
+    restore=1
+    open=$(open_votes)
+    now=$(fingerprint)
+    saved=$(cat "$DIR/fingerprint")
+    if [ "$open" != 0 ] || [ "$now" != "$saved" ]; then
+        echo "Restoring snapshot $STAMP would lose a real vote:" >&2
+        [ "$open" = 0 ] || echo "  - $open real vote(s) are open now" >&2
+        [ "$now" = "$saved" ] || echo "  - real ballots and elections (counts) were '$saved' at the snapshot and are '$now' now" >&2
+        if [ "$FORCE" = 1 ]; then
+            echo "--force given: restoring anyway." >&2
+        elif [ "$AUTO" = 1 ]; then
+            echo "Leaving the database as it is and going back to the previous programs only." >&2
+            restore=0
+        else
+            echo "Nothing was changed. Use --force to restore anyway and lose them." >&2
+            exit 4
+        fi
+    fi
+fi
+
+echo "Going back to the state before $STAMP"
+systemctl stop chisballot-vote chisballot-admin
+
+if [ "$restore" = 1 ]; then
+    runuser -u postgres -- psql -d "$DB" -v ON_ERROR_STOP=1 -q -c "DROP SCHEMA IF EXISTS ballot CASCADE"
+    runuser -u postgres -- pg_restore --dbname "$DB" --exit-on-error --no-owner --role=chisballot_owner < "$DIR/ballot.dump"
+    echo "Restored the ballot database"
+    if [ -f "$DIR/identity.db" ]; then
+        install -o chisballot-admin -g chisballot-admin -m 600 "$DIR/identity.db" "$IDENTITY_DB"
+        rm -f "$IDENTITY_DB-wal" "$IDENTITY_DB-shm"
+        echo "Restored the admin accounts file"
+    fi
+fi
+
+switch vote "$prev_vote"
+switch admin "$prev_admin"
+systemctl start chisballot-vote chisballot-admin
+
+if wait_healthy; then
+    echo "Both sites are answering again on $prev_vote."
+else
+    echo "The previous release is not answering either; look at: journalctl -u chisballot-vote -u chisballot-admin" >&2
+    exit 5
+fi

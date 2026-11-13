@@ -7,11 +7,16 @@
 # The folder must be inside the production runner's work area. Order of events:
 # copy the build to a new release folder, apply database changes, switch the
 # "current" links, restart, check the sites answer, and go back to the previous
-# release if they do not. Old releases are kept (three) so a rollback is a link.
+# release (and the database it found) if they do not. Old releases and snapshots are
+# kept (three each).
+#
+# It refuses to start while a real vote is open (see chisballot-lib.sh). To deploy
+# anyway, as root: CHISBALLOT_FORCE_DEPLOY=1 chisballot-deploy <folder>
 set -eu
 
+. /usr/local/lib/chisballot/chisballot-lib.sh
+
 ALLOWED=/home/runner-prod/actions-runner/_work/
-BASE=/opt/chisballot
 KEEP=3
 
 STAGE=${1:?usage: chisballot-deploy <build folder>}
@@ -32,8 +37,20 @@ done
     exit 2
 }
 
+open=$(open_votes)
+if [ "$open" != 0 ] && [ "${CHISBALLOT_FORCE_DEPLOY:-}" != 1 ]; then
+    echo "refusing: $open real vote(s) are open. Deploy after they close." >&2
+    exit 3
+fi
+
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 echo "Release $STAMP"
+
+echo "Taking a snapshot of the database and admin accounts"
+snapshot "$STAMP"
+# The encrypted copy that leaves this machine. Its failure does not stop a deploy;
+# the snapshot above is what a rollback uses.
+/usr/local/sbin/chisballot-backup || echo "warning: the encrypted backup failed" >&2
 
 for app in vote admin migrator; do
     DST=$BASE/$app/releases/$STAMP
@@ -48,42 +65,15 @@ echo "Applying database changes"
 # which a shell would split) and runs the migrator as its own user, sandboxed.
 systemd-run --quiet --wait --pipe --collect     -p User=chisballot-migrate     -p EnvironmentFile=/etc/chisballot/owner.env     -p WorkingDirectory="$BASE/migrator/releases/$STAMP"     -p ProtectSystem=strict -p ProtectHome=true -p PrivateTmp=true -p NoNewPrivileges=true     /usr/bin/dotnet ChisBallot.Migrator.dll
 
-previous_vote=$(readlink "$BASE/vote/current" 2>/dev/null || true)
-previous_admin=$(readlink "$BASE/admin/current" 2>/dev/null || true)
-
-switch() {
-    app=$1
-    target=$2
-    ln -sfn "$target" "$BASE/$app/current.new"
-    mv -T "$BASE/$app/current.new" "$BASE/$app/current"
-}
-
 switch vote "releases/$STAMP"
 switch admin "releases/$STAMP"
 systemctl restart chisballot-vote chisballot-admin
 
-healthy() {
-    vote=$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:5101/api/elections/health-check || true)
-    admin=$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:5102/Account/Login || true)
-    [ "$vote" = 404 ] && [ "$admin" = 200 ]
-}
-
-i=0
-until healthy; do
-    i=$((i + 1))
-    if [ "$i" -ge 20 ]; then
-        echo "The sites did not come up healthy; going back to the previous release" >&2
-        if [ -n "$previous_vote" ] && [ -n "$previous_admin" ]; then
-            switch vote "$previous_vote"
-            switch admin "$previous_admin"
-            systemctl restart chisballot-vote chisballot-admin
-        else
-            systemctl stop chisballot-vote chisballot-admin
-        fi
-        exit 1
-    fi
-    sleep 2
-done
+if ! wait_healthy; then
+    echo "The sites did not come up healthy; rolling back" >&2
+    /usr/local/sbin/chisballot-rollback --auto "$STAMP" || true
+    exit 1
+fi
 echo "Both sites are answering."
 
 for app in vote admin migrator; do
