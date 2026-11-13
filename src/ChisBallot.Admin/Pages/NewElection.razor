@@ -1,20 +1,40 @@
 @page "/new"
+@page "/elections/{Id:guid}/edit"
 @attribute [Authorize(Policy = AdminAuth.PolicyName)]
 @inject ElectionAdmin AdminService
+@inject AdminViews Views
 @inject NavigationManager Navigation
 
-<PageTitle>New vote</PageTitle>
+<PageTitle>@(this.Editing ? "Change the draft" : "New vote")</PageTitle>
 
-<h1>New vote</h1>
+<h1>@(this.Editing ? "Change the draft" : "New vote")</h1>
 
-<p>You are making a draft. Nothing is public until you generate slips and open it.</p>
+@if (this.Editing)
+{
+    <p><a href="/elections/@this.Id">&larr; Back to the vote</a></p>
+    <p>You are changing a draft. Nothing is public until you generate slips and open it. Saving replaces its questions and options with what is below.</p>
+}
+else
+{
+    <p>You are making a draft. Nothing is public until you generate slips and open it.</p>
+}
+
+@if (this.loadError is not null)
+{
+    <p class="error">@this.loadError</p>
+    return;
+}
 
 <label for="name">Name</label>
 <input id="name" class="text-input" value="@this.name" @oninput="this.OnNameChanged" />
 
 <label for="slug">Address</label>
-<input id="slug" class="text-input" value="@this.slug" @oninput="this.OnSlugChanged" />
+<input id="slug" class="text-input" value="@this.slug" @oninput="this.OnSlugChanged" disabled="@this.slugLocked" />
 <p class="hint">Voters will see it as vote.chisballot.org/e/@(string.IsNullOrEmpty(this.slug) ? "…" : this.slug)</p>
+@if (this.slugLocked)
+{
+    <p class="hint">The address cannot change now that slips have been made: their QR codes contain it.</p>
+}
 
 <fieldset class="options">
     <legend>Options</legend>
@@ -71,7 +91,7 @@
     <p class="error">@this.error</p>
 }
 
-<button class="chis-button" disabled="@this.busy" @onclick="this.SaveAsync">Save draft</button>
+<button class="chis-button" disabled="@this.busy" @onclick="this.SaveAsync">@(this.Editing ? "Save changes" : "Save draft")</button>
 
 @code {
     private sealed class ContestForm
@@ -87,6 +107,9 @@
         public bool AllowWriteIn { get; set; }
     }
 
+    [Parameter]
+    public Guid? Id { get; set; }
+
     private readonly List<ContestForm> contests = [new ContestForm()];
     private string name = string.Empty;
     private string slug = string.Empty;
@@ -95,7 +118,46 @@
     private bool shuffleChoices;
     private bool showLiveResults;
     private string? error;
+    private string? loadError;
+    private bool slugLocked;
     private bool busy;
+
+    private bool Editing => this.Id is not null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (this.Id is not Guid id)
+        {
+            return;
+        }
+
+        ElectionAdminView? view = await this.Views.LoadAsync(id);
+        if (view is null || view.Election.Status != 0)
+        {
+            this.loadError = view is null ? "That vote could not be found." : "Only a draft can be changed.";
+            return;
+        }
+
+        this.name = view.Election.Name;
+        this.slug = view.Election.Slug;
+        this.slugEdited = true;
+        this.slugLocked = view.Turnout.CodesIssued != 0;
+        this.shuffleContests = view.Election.ShuffleContests;
+        this.shuffleChoices = view.Election.ShuffleChoices;
+        this.showLiveResults = view.Election.ShowLiveResults;
+        this.contests.Clear();
+        foreach (ContestView contest in view.Election.Contests)
+        {
+            this.contests.Add(new ContestForm
+            {
+                Title = contest.Title,
+                ChoicesText = string.Join(Environment.NewLine, contest.Choices.Select(choice => choice.Label)),
+                Seats = contest.Seats,
+                MaxSelections = contest.MaxSelections,
+                AllowWriteIn = contest.AllowWriteIn,
+            });
+        }
+    }
 
     private void OnNameChanged(ChangeEventArgs e)
     {
@@ -146,7 +208,9 @@
         this.busy = true;
         try
         {
-            CreateElectionResponse result = await this.AdminService.CreateAsync(request);
+            CreateElectionResponse result = this.Id is Guid editing
+                ? await this.AdminService.UpdateDraftAsync(editing, request)
+                : await this.AdminService.CreateAsync(request);
             if (result.Id is Guid id)
             {
                 this.Navigation.NavigateTo($"/elections/{id}");

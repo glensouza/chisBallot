@@ -42,6 +42,10 @@ else
         <span class="badge">@StatusText(election.Status)</span>
         Voters see it at <strong>/e/@election.Slug</strong> on the voting site.
         <a href="/elections/@election.Id/paper">Paper ballots and count sheet</a>
+        @if (election.Status == 0)
+        {
+            <a href="/elections/@election.Id/edit">Change this draft</a>
+        }
     </p>
 
     <div class="chis-card">
