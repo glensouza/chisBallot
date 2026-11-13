@@ -1,6 +1,6 @@
-using System.Text.RegularExpressions;
-
 namespace ChisBallot.Contracts;
+
+using System.Text.RegularExpressions;
 
 /// <summary>
 /// The rules for a new election. The admin page checks them as you type and the

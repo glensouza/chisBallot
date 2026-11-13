@@ -1,7 +1,7 @@
+namespace ChisBallot.Admin.Account;
+
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Identity;
-
-namespace ChisBallot.Admin.Account;
 
 // Maps passkey AAGUIDs to authenticator names.
 // The AAGUID data is sourced from the community-maintained list at
@@ -35,7 +35,7 @@ public static class PasskeyAuthenticators
     public static bool TryGetDefaultDisplayName(UserPasskeyInfo passkey, [NotNullWhen(true)] out string? defaultName)
     {
         if (passkey.Aaguid is { Length: 16 } aaguid &&
-            KnownAuthenticators.TryGetValue(new Guid(aaguid, bigEndian: true), out var name))
+            KnownAuthenticators.TryGetValue(new Guid(aaguid, bigEndian: true), out string? name))
         {
             defaultName = name;
             return true;
@@ -52,7 +52,7 @@ public static class PasskeyAuthenticators
             return passkey.Name;
         }
 
-        if (TryGetDefaultDisplayName(passkey, out var name))
+        if (TryGetDefaultDisplayName(passkey, out string? name))
         {
             return name;
         }

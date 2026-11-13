@@ -264,19 +264,79 @@ else
 
     private async Task DownloadJsonAsync()
     {
-        var file = new
+        await this.SaveAsync($"{this.election!.Slug}-ballots.json", "application/json", this.BuildJson());
+    }
+
+    // Written by hand, not by reflection: the browser app is trimmed when it is published,
+    // and a serializer that discovers properties by reflection can lose them.
+    private string BuildJson()
+    {
+        ArrayBufferWriter<byte> buffer = new();
+        using (Utf8JsonWriter writer = new(buffer, new JsonWriterOptions { Indented = true }))
         {
-            election = this.election!.Slug,
-            name = this.election.Name,
-            contests = this.election.Contests.Select(c => new { id = c.Id, title = c.Title, seats = c.Seats, choices = c.Choices.Select(ch => new { id = ch.Id, label = ch.Label }) }),
-            ballots = this.ballots!.Select(b => new { receipt = b.Receipt, selections = b.Selections.Select(s => new { contest = s.ContestId, choice = s.ChoiceId, writeIn = s.WriteIn }) }),
-        };
-        await this.SaveAsync($"{this.election.Slug}-ballots.json", "application/json", System.Text.Json.JsonSerializer.Serialize(file, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            writer.WriteStartObject();
+            writer.WriteString("election", this.election!.Slug);
+            writer.WriteString("name", this.election.Name);
+
+            writer.WriteStartArray("contests");
+            foreach (ContestView contest in this.election.Contests)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("id", contest.Id);
+                writer.WriteString("title", contest.Title);
+                writer.WriteNumber("seats", contest.Seats);
+                writer.WriteStartArray("choices");
+                foreach (ChoiceView choice in contest.Choices)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("id", choice.Id);
+                    writer.WriteString("label", choice.Label);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+
+            writer.WriteStartArray("ballots");
+            foreach (PublishedBallot ballot in this.ballots!)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("receipt", ballot.Receipt);
+                writer.WriteStartArray("selections");
+                foreach (PublishedSelection selection in ballot.Selections)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("contest", selection.ContestId);
+                    if (selection.ChoiceId is Guid choiceId)
+                    {
+                        writer.WriteString("choice", choiceId);
+                    }
+                    else
+                    {
+                        writer.WriteNull("choice");
+                    }
+
+                    writer.WriteString("writeIn", selection.WriteIn);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(buffer.WrittenSpan);
     }
 
     private async Task DownloadCsvAsync()
     {
-        System.Text.StringBuilder csv = new("receipt,contest,choice,write_in\n");
+        StringBuilder csv = new("receipt,contest,choice,write_in\n");
         foreach (PublishedBallot ballot in this.ballots!)
         {
             if (ballot.Selections.Count == 0)

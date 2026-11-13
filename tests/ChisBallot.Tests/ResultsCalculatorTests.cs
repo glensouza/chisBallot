@@ -1,6 +1,6 @@
-using ChisBallot.Contracts;
-
 namespace ChisBallot.Tests;
+
+using ChisBallot.Contracts;
 
 public sealed class ResultsCalculatorTests
 {

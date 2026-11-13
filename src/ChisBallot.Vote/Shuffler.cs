@@ -1,6 +1,6 @@
-using System.Security.Cryptography;
-
 namespace ChisBallot.Vote;
+
+using System.Security.Cryptography;
 
 /// <summary>
 /// Fisher-Yates shuffle driven by the browser's cryptographic random number

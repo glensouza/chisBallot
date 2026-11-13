@@ -1,3 +1,5 @@
+namespace ChisBallot.Admin;
+
 using ChisBallot.Admin.Account;
 using ChisBallot.Admin.Data;
 using Microsoft.AspNetCore.Authentication;
@@ -5,8 +7,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-
-namespace ChisBallot.Admin;
 
 /// <summary>
 /// Who may use the admin site: a signed-in, invited admin who has set up a

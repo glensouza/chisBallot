@@ -1,7 +1,7 @@
+namespace ChisBallot.Tests;
+
 using ChisBallot.Contracts;
 using ChisBallot.Data;
-
-namespace ChisBallot.Tests;
 
 public sealed class CodeTests
 {

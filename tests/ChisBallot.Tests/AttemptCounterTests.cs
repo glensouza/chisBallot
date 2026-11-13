@@ -1,6 +1,6 @@
-using ChisBallot.Data;
-
 namespace ChisBallot.Tests;
+
+using ChisBallot.Data;
 
 public sealed class AttemptCounterTests
 {

@@ -1,7 +1,7 @@
+namespace ChisBallot.Data;
+
 using ChisBallot.Contracts;
 using Npgsql;
-
-namespace ChisBallot.Data;
 
 /// <summary>
 /// Reads the published ballot list through ballot.get_ballots, which the

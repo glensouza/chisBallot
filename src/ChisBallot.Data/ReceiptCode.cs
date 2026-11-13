@@ -1,6 +1,6 @@
-using System.Security.Cryptography;
-
 namespace ChisBallot.Data;
+
+using System.Security.Cryptography;
 
 /// <summary>
 /// The code a voter keeps to find their ballot afterwards, like K7Q-4MX-92B.

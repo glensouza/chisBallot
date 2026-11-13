@@ -86,7 +86,7 @@ else
         message = IdentityStatusMessage;
         IdentityStatusMessage = null;
 
-        var user = await UserManager.GetUserAsync(HttpContext.User);
+        ApplicationUser? user = await UserManager.GetUserAsync(HttpContext.User);
         if (user is null)
         {
             RedirectManager.RedirectTo("Account/InvalidUser");

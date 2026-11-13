@@ -1,3 +1,5 @@
+namespace ChisBallot.Tests;
+
 using System.Security.Claims;
 using System.Text;
 using ChisBallot.Admin;
@@ -8,8 +10,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-
-namespace ChisBallot.Tests;
 
 /// <summary>
 /// The admin site's access rules, run against a real SQLite account store set

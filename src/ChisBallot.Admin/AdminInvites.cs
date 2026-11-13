@@ -1,10 +1,10 @@
+namespace ChisBallot.Admin;
+
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using ChisBallot.Admin.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
-
-namespace ChisBallot.Admin;
 
 /// <summary>
 /// Makes admins. There is no public registration and no email: an existing

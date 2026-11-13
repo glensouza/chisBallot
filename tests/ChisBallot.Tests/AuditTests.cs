@@ -1,7 +1,7 @@
+namespace ChisBallot.Tests;
+
 using ChisBallot.Contracts;
 using ChisBallot.Data;
-
-namespace ChisBallot.Tests;
 
 [Collection(DatabaseCollection.Name)]
 public sealed class AuditTests(DatabaseFixture database)

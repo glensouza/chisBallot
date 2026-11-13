@@ -19,7 +19,7 @@
 {
     <table class="table">
         <tbody>
-            @foreach (var passkey in currentPasskeys)
+            @foreach (UserPasskeyInfo passkey in currentPasskeys)
             {
                 <tr>
                     <td>
@@ -28,7 +28,7 @@
                     </td>
                     <td>
                         @{
-                            var credentialId = Base64Url.EncodeToString(passkey.CredentialId);
+                            string credentialId = Base64Url.EncodeToString(passkey.CredentialId);
                         }
                         <form @formname="@($"update-passkey-{credentialId}")" @onsubmit="UpdatePasskey" method="post">
                             <div>
@@ -126,7 +126,7 @@ else
             return;
         }
 
-        var attestationResult = await SignInManager.PerformPasskeyAttestationAsync(Input.CredentialJson);
+        PasskeyAttestationResult attestationResult = await SignInManager.PerformPasskeyAttestationAsync(Input.CredentialJson);
         if (!attestationResult.Succeeded)
         {
             IdentityStatusMessage = $"Error: Could not add the passkey: {attestationResult.Failure.Message}";
@@ -135,12 +135,12 @@ else
         }
 
         // If the authenticator is known, assign the inferred name
-        if (PasskeyAuthenticators.TryGetDefaultDisplayName(attestationResult.Passkey, out var defaultName))
+        if (PasskeyAuthenticators.TryGetDefaultDisplayName(attestationResult.Passkey, out string? defaultName))
         {
             attestationResult.Passkey.Name = defaultName;
         }
 
-        var addPasskeyResult = await UserManager.AddOrUpdatePasskeyAsync(user, attestationResult.Passkey);
+        IdentityResult addPasskeyResult = await UserManager.AddOrUpdatePasskeyAsync(user, attestationResult.Passkey);
         if (!addPasskeyResult.Succeeded)
         {
             IdentityStatusMessage = "Error: The passkey could not be added to your account.";
@@ -157,7 +157,7 @@ else
         }
 
         // For unknown authenticators, prompt the user to enter a name
-        var credentialIdBase64Url = Base64Url.EncodeToString(attestationResult.Passkey.CredentialId);
+        string credentialIdBase64Url = Base64Url.EncodeToString(attestationResult.Passkey.CredentialId);
         RedirectManager.RedirectTo($"Account/Manage/RenamePasskey/{credentialIdBase64Url}");
     }
 
@@ -198,7 +198,7 @@ else
             return;
         }
 
-        var result = await UserManager.RemovePasskeyAsync(user, credentialId);
+        IdentityResult result = await UserManager.RemovePasskeyAsync(user, credentialId);
         if (!result.Succeeded)
         {
             IdentityStatusMessage = "Error: The passkey could not be deleted.";

@@ -1,10 +1,9 @@
+namespace ChisBallot.Admin;
 #if DEBUG
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
-
-namespace ChisBallot.Admin;
 
 /// <summary>
 /// Signs everyone in as an admin called "Local developer". It exists only in

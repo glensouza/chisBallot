@@ -1,9 +1,9 @@
+namespace ChisBallot.Data;
+
 using ChisBallot.Contracts;
 using Npgsql;
 using NpgsqlTypes;
 using Serilog;
-
-namespace ChisBallot.Data;
 
 /// <summary>
 /// Casts a ballot through ballot.cast_ballot, which consumes the code and
