@@ -22,6 +22,8 @@ string connectionString = builder.Configuration["DatabaseConnectionString"]
     ?? throw new InvalidOperationException("DatabaseConnectionString is not set.");
 
 builder.Services.AddSingleton(new ElectionReader(connectionString));
+builder.Services.AddSingleton(new ResultsReader(connectionString));
+builder.Services.AddSingleton(new AuditReader(connectionString));
 builder.Services.AddSingleton(new BallotCaster(connectionString, Log.Logger));
 builder.Services.AddSingleton(new DemoSlips(connectionString));
 

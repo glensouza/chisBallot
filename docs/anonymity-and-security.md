@@ -64,8 +64,7 @@ sites.
 | The local-development admin sign-in is compiled out of release builds, and CI fails if it is not | `#if DEBUG` in `DevAdminHandler.cs` and `AdminAuth.cs`; the "Dev-only admin sign-in" step in `.github/workflows/app.yml` | Read the step; it searches the release DLL |
 | The admin site connects as `chisballot_admin`, the voting site as `chisballot_vote` | `src/ChisBallot.AppHost/AppHost.cs` locally; the server setup when deployed (not written yet) | Read them |
 
-Not covered yet: the audit page, demo mode, rate limiting, the bot check, and
-the revote shortcut.
+Not covered yet: rate limiting, the bot check, and the revote shortcut.
 
 Report problems as a GitHub issue on this repository.
 
@@ -119,10 +118,10 @@ refused.
 
 | Measure | Where to check |
 |---|---|
-| At close, the receipt list and every anonymous ballot are published, so anyone can recount, and each voter can find their own receipt code in the list. | Results-publishing code |
-| Audit numbers are published with every result: codes issued, codes used, ballots counted. Used must equal counted. | Audit calculation and its test |
-| Every election has a public audit page, `/audit/{slug}`, with the audit numbers, the receipt list, every anonymous ballot as a download, and a recount that runs in the browser. Receipt lookup happens in the browser and the receipt is never sent to the server. | Audit page code; the page makes no request containing a receipt code (`docs/audit-page.md`) |
-| The published ballot list is ordered by receipt code, which is random, never by storage order, and carries no time or sequence number. | Audit page query and download code |
+| At close, the receipt list and every anonymous ballot are published, so anyone can recount, and each voter can find their own receipt code in the list. | `ballot.get_ballots` in `004_audit.sql` (refuses anything but a Closed election), `AuditReader`, and `AuditTests` |
+| Audit numbers are published with every result: codes issued, codes used, ballots counted. Used must equal counted. | The audit numbers on `AuditPage.razor` (the page shows a pass or fail) and `ResultsCalculator` with its tests |
+| Every election has a public audit page, `/audit/{slug}`, with the audit numbers, the receipt list, every anonymous ballot as a download, and a recount that runs in the browser. Receipt lookup happens in the browser and the receipt is never sent to the server. | `AuditPage.razor`: the search is a filter over the downloaded list and makes no request (`docs/audit-page.md`) |
+| The published ballot list is ordered by receipt code, which is random, never by storage order, and carries no time or sequence number. | The `ORDER BY` in `ballot.get_ballots` and the download code in `AuditPage.razor` |
 | The page shows the commit the site was built from, linked to the repository and the deploy run. | Build step that stamps the commit; the workflows in `.github/workflows/` |
 | A closed election cannot be reopened or changed. | Status transition code and its test |
 | A tie that decides who wins is flagged "revote needed" and never broken by the system or the chair. The revote is a new election. | Tie-check function and its tests |

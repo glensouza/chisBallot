@@ -1,0 +1,32 @@
+@* The result of each question: winners marked, or "Tie: revote needed". *@
+@foreach (ContestResult contest in this.Contests)
+{
+    <div class="chis-card result">
+        <h3>@contest.Title</h3>
+        <p class="hint">@(contest.Seats == 1 ? "1 seat" : $"{contest.Seats} seats")</p>
+
+        @if (contest.Tie is not null)
+        {
+            <p class="warn">
+                <strong>Tie: revote needed.</strong>
+                @string.Join(" and ", contest.Tie.TiedLabels) are level for @(contest.Tie.OpenSeats == 1 ? "the last seat" : $"the last {contest.Tie.OpenSeats} seats").
+                The site does not break a tie. The tied choices go to a new vote.
+            </p>
+        }
+
+        <table class="result-table">
+            @foreach (ResultEntry entry in contest.Entries)
+            {
+                <tr class="@(entry.IsWinner ? "winner" : string.Empty)">
+                    <td>@entry.Label @(entry.IsWriteIn ? "(write-in)" : string.Empty) @(entry.IsWinner ? "✔" : string.Empty)</td>
+                    <td class="votes">@entry.Votes</td>
+                </tr>
+            }
+        </table>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ContestResult> Contests { get; set; } = [];
+}

@@ -1,3 +1,4 @@
+using ChisBallot.Contracts;
 using ChisBallot.Data;
 
 namespace ChisBallot.Tests;

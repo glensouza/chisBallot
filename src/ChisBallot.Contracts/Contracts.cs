@@ -32,3 +32,15 @@ public sealed record CastResponse(string? ReceiptCode, string? Error);
 public sealed record AdminIdentity(string Name, IReadOnlyList<string> Roles);
 
 public sealed record DemoSlipResponse(string Code);
+
+/// <summary>
+/// One line of a published ballot: a printed choice, or a write-in name. A
+/// ballot with no lines is a blank ballot. There is no time and no order of
+/// voting anywhere in it.
+/// </summary>
+public sealed record PublishedSelection(Guid ContestId, Guid? ChoiceId, string? WriteIn);
+
+public sealed record PublishedBallot(string Receipt, IReadOnlyList<PublishedSelection> Selections);
+
+/// <summary>What is running: the commit the site was built from, when known.</summary>
+public sealed record VersionView(string? Commit);

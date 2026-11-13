@@ -6,7 +6,8 @@ exists for that, and it has to be safe, because the demo runs on the same
 site as real votes.
 
 **Status:** built, except the **Try the demo** button on the home page, the
-bot check and the rate limit on the demo-slip button. Nothing here changes how
+bot check and the rate limit on the demo-slip button. `/e/demo-tie` shows the
+result, and `/audit/demo-tie` the audit page with the recount. Nothing here changes how
 a real election works.
 
 ## How demo mode works

@@ -36,7 +36,7 @@ jobs:
       - name: Build
         run: |
           rm -rf "$RUNNER_TEMP/release"
-          dotnet publish src/ChisBallot.Vote.Server --configuration Release --output "$RUNNER_TEMP/release/vote"
+          dotnet publish src/ChisBallot.Vote.Server --configuration Release -p:SourceRevisionId="$GITHUB_SHA" --output "$RUNNER_TEMP/release/vote"
           dotnet publish src/ChisBallot.Admin --configuration Release --output "$RUNNER_TEMP/release/admin"
           dotnet publish src/ChisBallot.Migrator --configuration Release --output "$RUNNER_TEMP/release/migrator"
 

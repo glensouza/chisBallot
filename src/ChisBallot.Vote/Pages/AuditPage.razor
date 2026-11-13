@@ -1,0 +1,300 @@
+@page "/audit/{Slug}"
+@implements IDisposable
+@inject HttpClient Http
+@inject IJSRuntime Js
+
+<PageTitle>Audit: @(this.election?.Name ?? "vote")</PageTitle>
+
+@if (this.election is null)
+{
+    <p>@(this.notFound ? "That vote could not be found." : "Loading…")</p>
+}
+else
+{
+    @if (this.election.IsDemo)
+    {
+        <div class="demo-banner">DEMO: not a real vote</div>
+    }
+
+    <h1>Audit: @this.election.Name</h1>
+    <p><a href="e/@this.election.Slug">Back to the vote</a></p>
+
+    <div class="chis-card">
+        <h2>Audit numbers</h2>
+        @if (this.turnout is not null)
+        {
+            <table class="result-table">
+                <tr><td>Slips issued</td><td class="votes">@this.turnout.CodesIssued</td></tr>
+                <tr><td>Slips used</td><td class="votes">@this.turnout.CodesUsed</td></tr>
+                @if (this.closed)
+                {
+                    <tr><td>Unused slips, deleted when the vote closed</td><td class="votes">@(this.turnout.CodesIssued - this.turnout.CodesUsed)</td></tr>
+                }
+                <tr><td>Ballots counted</td><td class="votes">@this.turnout.BallotsCounted</td></tr>
+            </table>
+            @if (this.turnout.CodesUsed == this.turnout.BallotsCounted)
+            {
+                <p class="audit-ok">Check passed: slips used equals ballots counted.</p>
+            }
+            else
+            {
+                <p class="audit-bad">Check failed: slips used (@this.turnout.CodesUsed) does not equal ballots counted (@this.turnout.BallotsCounted).</p>
+            }
+        }
+    </div>
+
+    <div class="chis-card">
+        <h2>Settings of this vote</h2>
+        <ul>
+            @foreach (ContestView contest in this.election.Contests)
+            {
+                <li>@contest.Title: @(contest.Seats == 1 ? "1 seat" : $"{contest.Seats} seats"), up to @contest.MaxSelections @(contest.MaxSelections == 1 ? "choice" : "choices") per voter, write-ins @(contest.AllowWriteIn ? "allowed" : "not allowed")</li>
+            }
+            <li>Questions in random order: @(this.election.ShuffleContests ? "yes" : "no")</li>
+            <li>Options in random order: @(this.election.ShuffleChoices ? "yes" : "no")</li>
+            <li>Running totals while open: @(this.election.ShowLiveResults ? "yes" : "no")</li>
+        </ul>
+    </div>
+
+    @if (!this.closed)
+    {
+        <div class="chis-card">
+            <p>This vote is not closed yet. The result, the receipt list and every anonymous ballot are published when it closes.</p>
+        </div>
+    }
+    else if (this.results is not null && this.ballots is not null)
+    {
+        <h2>Result</h2>
+        <ResultsView Contests="this.results" />
+
+        <div class="chis-card">
+            <h2>Find your receipt</h2>
+            <p>Type the receipt code you were given. The search runs in your browser; the code is never sent to the server.</p>
+            <input class="text-input" placeholder="K7Q-4MX-92B" @bind="this.search" @bind:event="oninput" autocomplete="off" />
+            @if (this.search.Trim().Length != 0)
+            {
+                @if (this.found is null)
+                {
+                    <p class="audit-bad">That receipt is not in the list.</p>
+                }
+                else
+                {
+                    <p class="audit-ok">Found. This is what your ballot recorded:</p>
+                    <ul>
+                        @foreach (string line in this.Describe(this.found))
+                        {
+                            <li>@line</li>
+                        }
+                        @if (this.found.Selections.Count == 0)
+                        {
+                            <li>No choices (a blank ballot)</li>
+                        }
+                    </ul>
+                }
+            }
+        </div>
+
+        <div class="chis-card">
+            <h2>Every anonymous ballot</h2>
+            <p>
+                @this.ballots.Count ballots, listed by receipt code. A receipt code is random, so the order says nothing about when anyone voted.
+                A ballot has no name, no slip and no time.
+            </p>
+            <button class="chis-button" @onclick="this.DownloadJsonAsync">Download JSON</button>
+            <button class="chis-button" @onclick="this.DownloadCsvAsync">Download CSV</button>
+            <div class="receipt-list">
+                @foreach (PublishedBallot ballot in this.ballots)
+                {
+                    <div class="@(this.found == ballot ? "mine" : string.Empty)">@ballot.Receipt</div>
+                }
+            </div>
+        </div>
+
+        <div class="chis-card">
+            <h2>Recount in your browser</h2>
+            <p>This adds up the ballots above with the same counting rules the site uses and compares the totals to the published result.</p>
+            <button class="chis-button" @onclick="this.Recount">Recount</button>
+            @if (this.recount is not null)
+            {
+                <ul>
+                    @foreach ((string Title, bool Matches, string Detail) line in this.recount)
+                    {
+                        <li class="@(line.Matches ? "audit-ok" : "audit-bad")">@line.Title: @line.Detail</li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+
+    <div class="chis-card">
+        <h2>What is running</h2>
+        @if (this.commit is null)
+        {
+            <p>This build does not say which commit it came from.</p>
+        }
+        else
+        {
+            <p>
+                Built from commit
+                <a href="https://github.com/glensouza/chisBallot/commit/@this.commit"><code>@this.commit[..Math.Min(12, this.commit.Length)]</code></a>.
+                Compare it with the <a href="https://github.com/glensouza/chisBallot/actions/workflows/deploy.yml">deploy runs</a> and the code at that commit.
+            </p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Slug { get; set; } = string.Empty;
+
+    private readonly CancellationTokenSource stop = new();
+    private ElectionView? election;
+    private TurnoutView? turnout;
+    private IReadOnlyList<ContestResult>? results;
+    private IReadOnlyList<PublishedBallot>? ballots;
+    private string? commit;
+    private bool notFound;
+    private bool closed;
+    private string search = string.Empty;
+    private List<(string Title, bool Matches, string Detail)>? recount;
+
+    private PublishedBallot? found
+    {
+        get
+        {
+            string wanted = Normalize(this.search);
+            return wanted.Length == 0 || this.ballots is null ? null : this.ballots.FirstOrDefault(ballot => Normalize(ballot.Receipt) == wanted);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        string slug = Uri.EscapeDataString(this.Slug);
+        try
+        {
+            this.election = await this.Http.GetFromJsonAsync<ElectionView>($"api/elections/{slug}", this.stop.Token);
+        }
+        catch (HttpRequestException)
+        {
+            this.notFound = true;
+            return;
+        }
+
+        this.closed = this.election!.Status == 2;
+        this.turnout = await this.Http.GetFromJsonAsync<TurnoutView>($"api/elections/{slug}/turnout", this.stop.Token);
+
+        if (this.closed)
+        {
+            this.results = await this.Http.GetFromJsonAsync<List<ContestResult>>($"api/elections/{slug}/results", this.stop.Token);
+            this.ballots = await this.Http.GetFromJsonAsync<List<PublishedBallot>>($"api/elections/{slug}/ballots", this.stop.Token);
+        }
+
+        try
+        {
+            this.commit = (await this.Http.GetFromJsonAsync<VersionView>("api/version", this.stop.Token))?.Commit;
+        }
+        catch (HttpRequestException)
+        {
+            this.commit = null;
+        }
+    }
+
+    // Receipts are compared without dashes or case, so K7Q-4MX-92B and k7q4mx92b both match.
+    private static string Normalize(string receipt) => new string([.. receipt.Where(char.IsLetterOrDigit)]).ToUpperInvariant();
+
+    private IEnumerable<string> Describe(PublishedBallot ballot)
+    {
+        foreach (PublishedSelection selection in ballot.Selections)
+        {
+            ContestView? contest = this.election!.Contests.FirstOrDefault(c => c.Id == selection.ContestId);
+            string choice = selection.ChoiceId is null
+                ? $"{selection.WriteIn} (write-in)"
+                : contest?.Choices.FirstOrDefault(c => c.Id == selection.ChoiceId)?.Label ?? "?";
+            yield return $"{contest?.Title ?? "?"}: {choice}";
+        }
+    }
+
+    private void Recount()
+    {
+        List<(string, bool, string)> lines = [];
+        foreach (ContestView contest in this.election!.Contests)
+        {
+            Dictionary<Guid, int> choiceVotes = contest.Choices.ToDictionary(choice => choice.Id, _ => 0);
+            Dictionary<string, int> writeIns = [];
+
+            foreach (PublishedBallot ballot in this.ballots!)
+            {
+                foreach (PublishedSelection selection in ballot.Selections.Where(s => s.ContestId == contest.Id))
+                {
+                    if (selection.ChoiceId is Guid choiceId && choiceVotes.ContainsKey(choiceId))
+                    {
+                        choiceVotes[choiceId]++;
+                    }
+                    else if (selection.WriteIn is not null && WriteInName.TryNormalize(selection.WriteIn, out _, out string key))
+                    {
+                        writeIns[key] = writeIns.GetValueOrDefault(key) + 1;
+                    }
+                }
+            }
+
+            List<(string Label, int Votes, bool IsWriteIn)> counts =
+            [
+                .. contest.Choices.Select(choice => (choice.Label, choiceVotes[choice.Id], false)),
+                .. writeIns.Select(pair => (pair.Key, pair.Value, true)),
+            ];
+            ContestResult mine = ResultsCalculator.Rank(contest.Id, contest.Title, contest.Seats, counts);
+            ContestResult? published = this.results!.FirstOrDefault(r => r.ContestId == contest.Id);
+
+            bool same = published is not null
+                && mine.Entries.Select(e => (e.Label, e.Votes)).SequenceEqual(published.Entries.Select(e => (e.Label, e.Votes)))
+                && (mine.Tie is null) == (published.Tie is null)
+                && (mine.Tie is null || mine.Tie.TiedLabels.SequenceEqual(published.Tie!.TiedLabels));
+            lines.Add((contest.Title, same, same ? "your count matches the published result" : "your count does NOT match the published result"));
+        }
+
+        bool counted = this.ballots!.Count == this.turnout!.BallotsCounted;
+        lines.Add(("Number of ballots", counted, counted ? $"{this.ballots.Count} ballots, as published" : $"the list has {this.ballots.Count} but the site counted {this.turnout.BallotsCounted}"));
+        this.recount = lines;
+    }
+
+    private async Task DownloadJsonAsync()
+    {
+        var file = new
+        {
+            election = this.election!.Slug,
+            name = this.election.Name,
+            contests = this.election.Contests.Select(c => new { id = c.Id, title = c.Title, seats = c.Seats, choices = c.Choices.Select(ch => new { id = ch.Id, label = ch.Label }) }),
+            ballots = this.ballots!.Select(b => new { receipt = b.Receipt, selections = b.Selections.Select(s => new { contest = s.ContestId, choice = s.ChoiceId, writeIn = s.WriteIn }) }),
+        };
+        await this.Js.InvokeVoidAsync("chisSaveFile", $"{this.election.Slug}-ballots.json", "application/json", System.Text.Json.JsonSerializer.Serialize(file, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private async Task DownloadCsvAsync()
+    {
+        System.Text.StringBuilder csv = new("receipt,contest,choice,write_in\n");
+        foreach (PublishedBallot ballot in this.ballots!)
+        {
+            if (ballot.Selections.Count == 0)
+            {
+                csv.Append(Quote(ballot.Receipt)).Append(",,,\n");
+            }
+
+            foreach (PublishedSelection selection in ballot.Selections)
+            {
+                ContestView? contest = this.election!.Contests.FirstOrDefault(c => c.Id == selection.ContestId);
+                string choice = selection.ChoiceId is null ? string.Empty : contest?.Choices.FirstOrDefault(c => c.Id == selection.ChoiceId)?.Label ?? string.Empty;
+                csv.Append(Quote(ballot.Receipt)).Append(',').Append(Quote(contest?.Title ?? string.Empty)).Append(',').Append(Quote(choice)).Append(',').Append(Quote(selection.WriteIn ?? string.Empty)).Append('\n');
+            }
+        }
+
+        await this.Js.InvokeVoidAsync("chisSaveFile", $"{this.election!.Slug}-ballots.csv", "text/csv", csv.ToString());
+    }
+
+    private static string Quote(string value) => "\"" + value.Replace("\"", "\"\"") + "\"";
+
+    public void Dispose()
+    {
+        this.stop.Cancel();
+        this.stop.Dispose();
+    }
+}

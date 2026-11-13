@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace ChisBallot.Data;
+namespace ChisBallot.Contracts;
 
 /// <summary>
 /// Write-in names are limited and normalized so counting follows fixed rules
