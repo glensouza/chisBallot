@@ -18,4 +18,9 @@
 	handle {
 		respond "No such preview." 404
 	}
+
+	# A preview that does not exist (or is still starting) is a 404, not a bad gateway.
+	handle_errors {
+		respond "No such preview, or it is still starting." 404
+	}
 }

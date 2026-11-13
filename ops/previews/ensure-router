@@ -8,11 +8,14 @@ cp "$HERE/Caddyfile" "$STATE/Caddyfile"
 
 docker network inspect previews >/dev/null 2>&1 || docker network create previews >/dev/null
 
-if [ "$(docker inspect -f '{{.State.Running}}' previews-router 2>/dev/null || echo false)" != true ]; then
+# The router's admin interface is off on purpose, so a changed Caddyfile cannot be reloaded: the router is
+# made again when the file changes (the previews are unreachable for a second, nothing else is affected).
+want=$(sha256sum "$STATE/Caddyfile" | cut -d ' ' -f 1)
+have=$(docker inspect -f '{{index .Config.Labels "chisballot.config"}}' previews-router 2>/dev/null || true)
+running=$(docker inspect -f '{{.State.Running}}' previews-router 2>/dev/null || echo false)
+
+if [ "$running" != true ] || [ "$have" != "$want" ]; then
     docker rm -f previews-router >/dev/null 2>&1 || true
-    docker run -d --name previews-router --restart unless-stopped --network previews \
-        -p 127.0.0.1:5200:8080 -v "$STATE/Caddyfile:/etc/caddy/Caddyfile:ro" --memory 64m caddy:2 >/dev/null
+    docker run -d --name previews-router --restart unless-stopped --network previews --label "chisballot.config=$want"         -p 127.0.0.1:5200:8080 -v "$STATE/Caddyfile:/etc/caddy/Caddyfile:ro" --memory 64m caddy:2 >/dev/null
     echo "Started the preview router"
-else
-    docker exec previews-router caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || true
 fi
