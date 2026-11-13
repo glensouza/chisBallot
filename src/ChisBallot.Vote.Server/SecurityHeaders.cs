@@ -10,12 +10,20 @@ namespace ChisBallot.Vote.Server;
 /// </summary>
 public sealed class SecurityHeaders(RequestDelegate next)
 {
+    // Everything comes from this site and nothing else: no other company's script, font, image or
+    // connection. WebAssembly needs 'wasm-unsafe-eval' to start; the browser app sets some styles
+    // itself, so inline styles are allowed (scripts never are).
+    private const string ContentSecurityPolicy =
+        "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+        "font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+
     public Task InvokeAsync(HttpContext context)
     {
         IHeaderDictionary headers = context.Response.Headers;
         headers["Referrer-Policy"] = "no-referrer";
         headers["X-Content-Type-Options"] = "nosniff";
         headers["X-Frame-Options"] = "DENY";
+        headers["Content-Security-Policy"] = ContentSecurityPolicy;
 
         // Static files set their own Cache-Control when the response starts, so
         // this is applied then, after theirs.

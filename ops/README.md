@@ -137,6 +137,9 @@ removes any left behind).
 - The Cloudflare tunnel sends `*.chisballot.org` (after the explicit `vote.` and `admin.`
   entries) to port 5200, and a wildcard DNS record points at the tunnel. `ops/previews/ensure-router`
   starts the router if it is not running.
+- The router's admin interface is off, so a changed `Caddyfile` cannot be reloaded;
+  `ensure-router` makes the router again when the file changes (the previews are
+  unreachable for a second).
 - At most four previews run at once (`MAX_PREVIEWS`). The data is in memory, so a preview
   starts empty except for the demo votes.
 - Each preview prints a one-time admin link, which the workflow puts in the pull request.
