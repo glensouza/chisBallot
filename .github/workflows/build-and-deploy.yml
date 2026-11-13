@@ -157,6 +157,7 @@ jobs:
       && needs.test.outputs.bundle_sha256 != ''
     runs-on: [self-hosted, prod]
     environment: production
+    timeout-minutes: 300
     permissions:
       contents: read
       actions: write
@@ -182,7 +183,8 @@ jobs:
           tar -xzf chisballot-release.tgz -C "$RUNNER_TEMP/release" --no-same-owner
 
       - name: Deploy
-        run: sudo /usr/local/sbin/chisballot-deploy "$RUNNER_TEMP/release" "$GITHUB_WORKSPACE/ops/lxc"
+        # Waits up to four hours for a vote in progress to close, then gives up.
+        run: sudo /usr/local/sbin/chisballot-deploy "$RUNNER_TEMP/release" "$GITHUB_WORKSPACE/ops/lxc" 14400
 
       # Not needed any more once it is in service. If the deploy failed it stays
       # (for a day) so the job can be run again.

@@ -33,8 +33,10 @@ is fixed by a new script, or by restoring the snapshot below.
 
 ## What a deploy does to protect a vote
 
-1. It **refuses to start while a real vote is open** (the always-open demo does not
-   count). To deploy anyway, as root on the server:
+1. It **waits while a real vote is open** (the always-open demo does not count). The
+   deploy job stays paused, up to four hours, and carries on by itself when the vote
+   closes; if the vote is still open after that it stops without changing anything. To
+   deploy anyway, as root on the server:
    `CHISBALLOT_FORCE_DEPLOY=1 /usr/local/sbin/chisballot-deploy <build folder>`.
 2. It takes a **snapshot** before touching anything, in
    `/var/lib/chisballot-deploy/snapshots/<release>/` (root only, newest three kept):

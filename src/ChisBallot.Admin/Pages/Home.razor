@@ -1,6 +1,8 @@
 @page "/"
+@using Npgsql
 @attribute [Authorize(Policy = AdminAuth.PolicyName)]
 @inject ElectionReader Elections
+@inject ElectionAdmin AdminService
 
 <PageTitle>chisBallot admin</PageTitle>
 
@@ -45,6 +47,31 @@ else
     }
 }
 
+@if (this.elections is not null)
+{
+    <div class="chis-card">
+        <h2>Demo votes</h2>
+        <p>
+            The demo vote and the tie demo are for showing the site. Resetting deletes their ballots, and any revote made from
+            them, and makes both fresh: the demo opens empty, the tie demo is closed with its made-up tie. Real votes are not touched.
+        </p>
+        @if (!this.confirmReset)
+        {
+            <button class="chis-button" @onclick="() => this.confirmReset = true">Reset the demos…</button>
+        }
+        else
+        {
+            <button class="chis-button" disabled="@this.busy" @onclick="this.ResetDemosAsync">Yes, reset the demos now</button>
+            <button class="link-button" @onclick="() => this.confirmReset = false">Cancel</button>
+        }
+
+        @if (this.resetMessage is not null)
+        {
+            <p>@this.resetMessage</p>
+        }
+    </div>
+}
+
 @code {
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationState { get; set; }
@@ -52,6 +79,9 @@ else
     private string? me;
     private IReadOnlyList<ElectionSummary>? elections;
     private string? error;
+    private bool confirmReset;
+    private bool busy;
+    private string? resetMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -64,6 +94,27 @@ else
         catch (Npgsql.NpgsqlException)
         {
             this.error = "The database could not be reached.";
+        }
+    }
+
+    private async Task ResetDemosAsync()
+    {
+        this.busy = true;
+        this.resetMessage = null;
+        try
+        {
+            await this.AdminService.ResetDemosAsync();
+            this.elections = await this.Elections.ListAsync();
+            this.resetMessage = "The demos were reset.";
+        }
+        catch (NpgsqlException)
+        {
+            this.resetMessage = "The demos could not be reset. The database could not be reached.";
+        }
+        finally
+        {
+            this.busy = false;
+            this.confirmReset = false;
         }
     }
 
