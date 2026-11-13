@@ -89,7 +89,11 @@ ChisBallot__VotePassword=$VOTE_PASSWORD
 ChisBallot__AdminPassword=$ADMIN_PASSWORD
 EOF
 
+install -d -m 755 /usr/local/lib/chisballot
+install -m 644 "$HERE/chisballot-lib.sh" /usr/local/lib/chisballot/chisballot-lib.sh
 install -m 755 "$HERE/chisballot-deploy" /usr/local/sbin/chisballot-deploy
+install -m 755 "$HERE/chisballot-rollback" /usr/local/sbin/chisballot-rollback
+install -d -m 700 /var/lib/chisballot-deploy
 install -m 755 "$HERE/chisballot-backup" /usr/local/sbin/chisballot-backup
 for unit in chisballot-vote.service chisballot-admin.service chisballot-backup.service chisballot-backup.timer cloudflared.service; do
     install -m 644 "$HERE/$unit" "/etc/systemd/system/$unit"
