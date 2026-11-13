@@ -222,19 +222,21 @@ overclaiming.
   counting service, no account with anyone who sells voting software. The
   code is open and we run it ourselves."
 - "There are no analytics, no ads and no trackers on the site."
-- "It does run on public cloud: Microsoft Azure hosts the site and the
-  database, Cloudflare handles the domain and a bot check, and GitHub holds
-  the code. Those companies run the machines, like for any website. What
-  they hold is anonymous ballots. Nothing stored says who cast which one."
+- "It runs on a small server we run ourselves, not on a vendor's cloud. Two
+  outside services are involved: Cloudflare, which handles the domain and
+  carries the traffic to our server, and GitHub, which holds the code. What
+  passes through them is anonymous ballots. Nothing says who cast which one."
 
 **Do not say** that nobody can see the data, or that no third-party service
-is involved. Both are false, and someone in the room will notice. Azure also
-keeps its own backups and logs that we do not control; that limit is written
-down in `docs/anonymity-and-security.md`.
+is involved. Both are false, and someone in the room will notice. Cloudflare
+sits in front of the sites and sees the traffic in transit, and our own
+backups are encrypted copies kept on our own equipment; those limits are
+written down in `docs/anonymity-and-security.md`.
 
-**If asked "Who can see our data?"** "The hosting companies can see what is
-stored, which is anonymous ballots. The admins can see the same. Neither can
-see who voted for what, because we never store it."
+**If asked "Who can see our data?"** "The people who run the server can see
+what is stored, which is anonymous ballots. Cloudflare carries the traffic
+and can see it pass. Nobody can see who voted for what, because we never
+store it."
 
 ---
 
@@ -333,8 +335,8 @@ can be made only once per vote."
 | Who can set up a vote? | Only invited admins, on a separate sign-in-only site. The public voting site has no admin functions. |
 | Who has reviewed it? | The code is public so anyone can. Offer the union the chance to name a reviewer before the pilot. |
 | What happens to old votes? | Results, receipt lists and audit numbers stay published. Unused codes are deleted when a vote closes. |
-| What does it cost if we outgrow it? | Nothing changes at our size. It is built on free tiers meant for small projects. |
-| Do you use any third-party services? | Yes: Microsoft Azure for hosting, Cloudflare for the domain and a bot check, GitHub for the code. There is no voting vendor, and no analytics or ad trackers. |
+| What does it cost if we outgrow it? | Nothing changes at our size. It runs on a small server we already own, so the cost is a domain name and electricity. |
+| Do you use any third-party services? | Yes: Cloudflare for the domain and for carrying traffic to our server, and GitHub for the code. The sites themselves run on a server we operate. There is no voting vendor, and no analytics or ad trackers. |
 | What if there is a tie? | The site does not break it. The result says revote needed, clear winners keep their seats, and the tied choices go to a new vote with fresh slips. |
 | Can the chair see how people voted? | No. Ballots hold no name, code or time. The chair sees turnout, and results only when the vote closes, or live if that was switched on beforehand. |
 | Can someone type something silly as a write-in? | Write-ins are off unless the chair turns them on, are limited in length and characters, and show only after the vote closes. |

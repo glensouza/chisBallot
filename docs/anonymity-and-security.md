@@ -104,7 +104,7 @@ refused.
 | No code, no code hash alongside anything else, and no ballot contents are logged. The cast-ballot request does not log IP addresses. | Serilog configuration and every log call on the cast path |
 | No analytics, tracking scripts or third-party fonts on the ballot page. The only third-party script is Turnstile, which sees the page visit but not the fragment. | The page's HTML and script tags |
 | This repository configures no analytics, application-monitoring or request-logging service, and the sites' own request logging is switched off. | `ops/lxc/*.service`, `src/ChisBallot.Vote.Server/Program.cs` (search for `MinimumLevel`) |
-| Traffic is encrypted: Cloudflare terminates HTTPS in front of every site, and the database accepts connections only from the same machine. | The server setup (not written yet), so this is not yet checkable |
+| Traffic is encrypted: Cloudflare terminates HTTPS in front of every site and a tunnel carries it to the server, and the database accepts connections only from the same machine. Cloudflare can see traffic in transit. | `ops/lxc/cloudflared.service`, the listen settings in `ops/lxc/setup.sh` |
 
 ## 4. Results are not shown early
 
