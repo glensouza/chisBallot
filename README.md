@@ -44,8 +44,6 @@ name, the slip's code or a time.
 - [`docs/audit-page.md`](docs/audit-page.md): the public audit page
 - [`docs/demo.md`](docs/demo.md): demo mode and the live demo script
 - [`docs/paper-fallback.md`](docs/paper-fallback.md): switching to paper, step by step
-- [`docs/presenter-notes.md`](docs/presenter-notes.md): notes for presenting
-  the proposal
 - [`docs/branding.md`](docs/branding.md): colors and artwork rules
 - [`ops/README.md`](ops/README.md): the server, how it is set up and how it is
   deployed
