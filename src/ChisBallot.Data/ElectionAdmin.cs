@@ -16,7 +16,7 @@ public sealed class ElectionAdmin(string connectionString, ILogger logger)
     private const string ElectionChangeRefused = "CB002";
     private const string NotOpen = "CB003";
 
-    public async Task<CreateElectionResponse> CreateAsync(CreateElectionRequest request, CancellationToken cancellationToken = default)
+    public async Task<CreateElectionResponse> CreateAsync(CreateElectionRequest request, Guid? revoteOf = null, bool isDemo = false, CancellationToken cancellationToken = default)
     {
         string? problem = ElectionRequestValidator.Validate(request);
         if (problem is not null)
@@ -33,11 +33,12 @@ public sealed class ElectionAdmin(string connectionString, ILogger logger)
         try
         {
             await ExecuteAsync(connection, transaction, """
-                INSERT INTO ballot.elections (id, slug, name, status, codes_issued, show_live_results, shuffle_contests, shuffle_choices, is_demo)
-                VALUES (@id, @slug, @name, 0, 0, @live, @shuffleContests, @shuffleChoices, false)
+                INSERT INTO ballot.elections (id, slug, name, status, codes_issued, show_live_results, shuffle_contests, shuffle_choices, is_demo, revote_of)
+                VALUES (@id, @slug, @name, 0, 0, @live, @shuffleContests, @shuffleChoices, @demo, @revoteOf)
                 """,
                 ("id", electionId), ("slug", request.Slug), ("name", request.Name.Trim()), ("live", request.ShowLiveResults),
-                ("shuffleContests", request.ShuffleContests), ("shuffleChoices", request.ShuffleChoices));
+                ("shuffleContests", request.ShuffleContests), ("shuffleChoices", request.ShuffleChoices),
+                ("demo", isDemo), ("revoteOf", (object?)revoteOf ?? DBNull.Value));
 
             for (int contestIndex = 0; contestIndex < request.Contests.Count; contestIndex++)
             {

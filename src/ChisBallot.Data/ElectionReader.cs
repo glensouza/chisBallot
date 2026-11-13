@@ -22,11 +22,17 @@ public sealed class ElectionReader(string connectionString)
         bool shuffleContests;
         bool shuffleChoices;
         bool isDemo;
+        string? revoteOfSlug;
+        string? revoteSlug;
+        Guid? revoteId;
 
         await using (NpgsqlCommand command = new("""
-            SELECT id, name, status, show_live_results, shuffle_contests, shuffle_choices, is_demo
-            FROM ballot.elections
-            WHERE slug = @slug AND (@drafts OR status <> 0)
+            SELECT e.id, e.name, e.status, e.show_live_results, e.shuffle_contests, e.shuffle_choices, e.is_demo,
+                   (SELECT p.slug FROM ballot.elections p WHERE p.id = e.revote_of),
+                   r.slug, r.id
+            FROM ballot.elections e
+            LEFT JOIN ballot.elections r ON r.revote_of = e.id AND (@drafts OR r.status <> 0)
+            WHERE e.slug = @slug AND (@drafts OR e.status <> 0)
             """, connection))
         {
             command.Parameters.AddWithValue("slug", slug);
@@ -44,6 +50,9 @@ public sealed class ElectionReader(string connectionString)
             shuffleContests = reader.GetBoolean(4);
             shuffleChoices = reader.GetBoolean(5);
             isDemo = reader.GetBoolean(6);
+            revoteOfSlug = reader.IsDBNull(7) ? null : reader.GetString(7);
+            revoteSlug = reader.IsDBNull(8) ? null : reader.GetString(8);
+            revoteId = reader.IsDBNull(9) ? null : reader.GetGuid(9);
         }
 
         List<(Guid Id, string Title, int Seats, int MaxSelections, bool AllowWriteIn)> contests = [];
@@ -90,7 +99,7 @@ public sealed class ElectionReader(string connectionString)
             .Select(c => new ContestView(c.Id, c.Title, c.Seats, c.MaxSelections, c.AllowWriteIn, choices.TryGetValue(c.Id, out List<ChoiceView>? list) ? list : []))
             .ToList();
 
-        return new ElectionView(id, slug, name, status, showLiveResults, shuffleContests, shuffleChoices, isDemo, views);
+        return new ElectionView(id, slug, name, status, showLiveResults, shuffleContests, shuffleChoices, isDemo, views, revoteOfSlug, revoteSlug, revoteId);
     }
 
     public async Task<IReadOnlyList<ElectionSummary>> ListAsync(CancellationToken cancellationToken = default)

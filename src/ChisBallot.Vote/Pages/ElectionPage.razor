@@ -19,6 +19,16 @@ else
     <h1>@this.election.Name</h1>
     <p>@StatusText(this.election.Status)</p>
 
+    @if (this.election.RevoteOfSlug is not null)
+    {
+        <p>This is a revote for questions that ended in a tie in <a href="e/@this.election.RevoteOfSlug">the earlier vote</a>.</p>
+    }
+
+    @if (this.election.RevoteSlug is not null)
+    {
+        <p><strong>Some questions ended in a tie.</strong> The tied choices are decided in <a href="e/@this.election.RevoteSlug">a revote</a>.</p>
+    }
+
     @if (this.election.IsDemo && this.election.Status == 1)
     {
         <p>At a real vote the slip comes from the pile on the table. Here, a button hands you one.</p>

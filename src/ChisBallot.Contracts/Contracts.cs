@@ -14,7 +14,10 @@ public sealed record ElectionView(
     bool ShuffleContests,
     bool ShuffleChoices,
     bool IsDemo,
-    IReadOnlyList<ContestView> Contests);
+    IReadOnlyList<ContestView> Contests,
+    string? RevoteOfSlug = null,
+    string? RevoteSlug = null,
+    Guid? RevoteId = null);
 
 public sealed record ElectionSummary(Guid Id, string Slug, string Name, int Status, bool IsDemo, int CodesIssued);
 
