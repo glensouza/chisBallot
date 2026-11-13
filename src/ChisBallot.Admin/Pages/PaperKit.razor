@@ -1,0 +1,152 @@
+@page "/elections/{Id:guid}/paper"
+@attribute [Authorize(Policy = AdminAuth.PolicyName)]
+@inject AdminViews Views
+
+<PageTitle>Paper ballots</PageTitle>
+
+@if (this.view is null)
+{
+    <p>@(this.notFound ? "That vote could not be found." : "Loading…")</p>
+}
+else
+{
+    ElectionView election = this.view.Election;
+
+    <div class="no-print">
+        <p><a href="/elections/@this.Id">&larr; Back to the vote</a></p>
+        <h1>Paper ballots for @election.Name</h1>
+        <p>
+            Use these if the site or the internet fails, or someone cannot vote on a phone. Print the ballots and the count sheet,
+            then follow <strong>docs/paper-fallback.md</strong>. Ballots carry no number or mark that could tell one from another.
+        </p>
+        <label for="copies">How many ballots</label>
+        <input id="copies" class="text-input" type="number" min="1" max="@MaxCopies" @bind="this.copies" @bind:event="oninput" />
+        <p class="hint">Two ballots fit on a page. Print extras: spoiled ballots are replaced, never reused.</p>
+        <label><input type="checkbox" @bind="this.includeBallots" /> Ballots</label>
+        <label><input type="checkbox" @bind="this.includeCountSheet" /> Count sheet</label>
+        <p><button class="chis-button" @onclick="this.PrintAsync">Print</button></p>
+        @if (this.error is not null)
+        {
+            <p class="error">@this.error</p>
+        }
+    </div>
+
+    @if (this.includeBallots)
+    {
+        <div class="paper-ballots">
+            @for (int copy = 0; copy < this.Copies; copy++)
+            {
+                <section class="paper-ballot">
+                    <header>
+                        <span class="paper-mark">PAPER BALLOT</span>
+                        <h2>@election.Name</h2>
+                    </header>
+                    @foreach (ContestView contest in election.Contests)
+                    {
+                        <div class="paper-contest">
+                            <h3>@contest.Title</h3>
+                            <p class="paper-rule">@VoteRule(contest)</p>
+                            @foreach (ChoiceView choice in contest.Choices)
+                            {
+                                <div class="paper-choice"><span class="paper-box"></span> @choice.Label</div>
+                            }
+                            @if (contest.AllowWriteIn)
+                            {
+                                <div class="paper-choice"><span class="paper-box"></span> Write-in: <span class="paper-line"></span></div>
+                            }
+                        </div>
+                    }
+                    <footer>Mark your choices. Do not write your name. Fold once and give it to the chair.</footer>
+                </section>
+            }
+        </div>
+    }
+
+    @if (this.includeCountSheet)
+    {
+        <section class="paper-count @(this.includeBallots ? "paper-break" : string.Empty)">
+            <h1>Paper count sheet</h1>
+            <h2>@election.Name</h2>
+
+            <table class="paper-recon">
+                <tr><td>Slips issued (from the site)</td><td>@this.view.Turnout.CodesIssued</td></tr>
+                <tr><td>Digital ballots counted (from the site, after the vote is closed)</td><td class="paper-fill"></td></tr>
+                <tr><td>Unused slips handed back to the chair</td><td class="paper-fill"></td></tr>
+                <tr><td>Paper ballots handed out (must equal slips handed back)</td><td class="paper-fill"></td></tr>
+                <tr><td>Paper ballots spoiled and replaced</td><td class="paper-fill"></td></tr>
+                <tr><td>Paper ballots counted</td><td class="paper-fill"></td></tr>
+            </table>
+
+            @foreach (ContestView contest in election.Contests)
+            {
+                <h3>@contest.Title</h3>
+                <p class="paper-rule">@VoteRule(contest)</p>
+                <table class="paper-tally">
+                    <thead><tr><th>Choice</th><th>Tally marks</th><th>Total</th></tr></thead>
+                    <tbody>
+                        @foreach (ChoiceView choice in contest.Choices)
+                        {
+                            <tr><td>@choice.Label</td><td></td><td class="paper-fill"></td></tr>
+                        }
+                        @if (contest.AllowWriteIn)
+                        {
+                            @for (int line = 0; line < 4; line++)
+                            {
+                                <tr><td>Write-in: <span class="paper-line"></span></td><td></td><td class="paper-fill"></td></tr>
+                            }
+                        }
+                        <tr><td>Blank or no choice</td><td></td><td class="paper-fill"></td></tr>
+                    </tbody>
+                </table>
+            }
+
+            <div class="paper-sign">
+                <p>Counted by: <span class="paper-line"></span> Date: <span class="paper-line short"></span></p>
+                <p>Witness: <span class="paper-line"></span> Witness: <span class="paper-line"></span></p>
+                <p class="paper-rule">Keep the paper ballots and this sheet together. The paper count is the official record while the site is in its pilot.</p>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private const int MaxCopies = 200;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
+
+    private ElectionAdminView? view;
+    private bool notFound;
+    private int copies = 10;
+    private bool includeBallots = true;
+    private bool includeCountSheet = true;
+    private string? error;
+
+    private int Copies => Math.Clamp(this.copies, 1, MaxCopies);
+
+    protected override async Task OnInitializedAsync()
+    {
+        this.view = await this.Views.LoadAsync(this.Id);
+        this.notFound = this.view is null;
+    }
+
+    private async Task PrintAsync()
+    {
+        this.error = null;
+        try
+        {
+            await this.Js.InvokeVoidAsync("print");
+        }
+        catch (JSException)
+        {
+            this.error = "The browser would not open the print dialog. Use the browser's own print command.";
+        }
+    }
+
+    private static string VoteRule(ContestView contest) => contest.MaxSelections == 1
+        ? "Mark one."
+        : $"Mark up to {contest.MaxSelections}.";
+}

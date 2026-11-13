@@ -41,6 +41,7 @@ name, the slip's code or a time.
   known limits. Start here if you want to audit this
 - [`docs/audit-page.md`](docs/audit-page.md): the public audit page
 - [`docs/demo.md`](docs/demo.md): demo mode and the live demo script
+- [`docs/paper-fallback.md`](docs/paper-fallback.md): switching to paper, step by step
 - [`docs/presenter-notes.md`](docs/presenter-notes.md): notes for presenting
   the proposal
 - [`docs/branding.md`](docs/branding.md): colors and artwork rules
