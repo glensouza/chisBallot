@@ -2,7 +2,11 @@
 # Puts a freshly built release into service. Run as root, and only through the
 # one sudo rule the production runner has (see setup.sh):
 #
-#   sudo /usr/local/sbin/chisballot-deploy <folder containing vote/, admin/, migrator/>
+#   sudo /usr/local/sbin/chisballot-deploy <folder containing vote/, admin/, migrator/> [ops folder]
+#
+# The optional second folder holds ops/lxc from the same commit. After a successful
+# deploy the scripts in it (this one included) are installed, so the server's scripts
+# change with the code and nobody installs them by hand. Each is syntax-checked first.
 #
 # The folder must be inside the production runner's work area. Order of events:
 # copy the build to a new release folder, apply database changes, switch the
@@ -83,3 +87,30 @@ for app in vote admin migrator; do
     done
 done
 echo "Deployed $STAMP"
+
+# Bring the server's own scripts up to date with the commit that was just deployed.
+# Done last, and this script goes in last, so a run is never changed under itself.
+OPS_FOLDER=${2:-}
+if [ -n "$OPS_FOLDER" ]; then
+    OPS=$(realpath -e -- "$OPS_FOLDER" 2>/dev/null || true)
+    case "$OPS/" in
+        "$ALLOWED"*)
+            ok=1
+            for f in chisballot-lib.sh chisballot-rollback chisballot-backup chisballot-deploy; do
+                if [ ! -f "$OPS/$f" ] || [ -L "$OPS/$f" ] || ! sh -n "$OPS/$f"; then
+                    echo "not updating the server scripts: $f is missing or does not parse" >&2
+                    ok=0
+                fi
+            done
+            if [ "$ok" = 1 ]; then
+                install -d -m 755 /usr/local/lib/chisballot
+                install -m 644 "$OPS/chisballot-lib.sh" /usr/local/lib/chisballot/chisballot-lib.sh
+                install -m 755 "$OPS/chisballot-rollback" /usr/local/sbin/chisballot-rollback
+                install -m 755 "$OPS/chisballot-backup" /usr/local/sbin/chisballot-backup
+                install -m 755 "$OPS/chisballot-deploy" /usr/local/sbin/chisballot-deploy
+                echo "Updated the server scripts"
+            fi
+            ;;
+        *) echo "not updating the server scripts: $OPS is not inside the runner work area" >&2 ;;
+    esac
+fi
