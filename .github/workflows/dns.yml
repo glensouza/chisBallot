@@ -1,4 +1,4 @@
-name: DNS for the landing page
+name: Add the landing page DNS records (run by hand)
 
 # Makes the records that point www.chisballot.org (and the bare chisballot.org)
 # at GitHub Pages. Run by hand; it only adds records that are missing and never

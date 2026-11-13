@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy the sites to the server (needs approval)
 
 # Builds on the production runner (the server itself) and puts the result into
 # service with the deploy script in ops/lxc. The job waits for a reviewer's

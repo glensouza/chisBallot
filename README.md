@@ -1,5 +1,12 @@
 # chisBallot
 
+[![Build and test](https://github.com/glensouza/chisBallot/actions/workflows/app.yml/badge.svg?branch=main)](https://github.com/glensouza/chisBallot/actions/workflows/app.yml)
+[![Deploy](https://github.com/glensouza/chisBallot/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/glensouza/chisBallot/actions/workflows/deploy.yml)
+[![Landing page](https://github.com/glensouza/chisBallot/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/glensouza/chisBallot/actions/workflows/pages.yml)
+[![License](https://img.shields.io/github/license/glensouza/chisBallot)](LICENSE)
+![.NET 11](https://img.shields.io/badge/.NET-11-512BD4)
+![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-336791)
+
 A small open source voting site for the Citrus Hills Intermediate School
 council board. About 40 voters, one slip each, and a result anyone can check.
 
