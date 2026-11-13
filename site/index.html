@@ -11,11 +11,13 @@
     main { max-width: 40rem; margin: 2rem auto; padding: 0 1.25rem; }
     h1, h2 { color: var(--blue); }
     header h1 { color: #fff; margin: 0; }
+    .brand { display: inline-flex; align-items: center; gap: 0.75rem; text-decoration: none; }
+    .brand img { height: 2.4rem; width: auto; background: #fff; border-radius: 999px; padding: 0.25rem 0.6rem; box-sizing: content-box; }
     .card { background: var(--tint); border-radius: 10px; padding: 1.25rem; }
   </style>
 </head>
 <body>
-  <header><h1>chisBallot</h1></header>
+  <header><a class="brand" href="/"><img src="logo.png" alt="Citrus Hills Intermediate School jaguar" width="360" height="214"><h1>chisBallot</h1></a></header>
   <main>
     <p>A small open source voting site for the Citrus Hills Intermediate School council board.</p>
     <div class="card">
