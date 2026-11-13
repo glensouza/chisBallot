@@ -33,6 +33,19 @@ public static class VoteEndpoints
             return turnout is null ? Results.NotFound() : Results.Ok(turnout);
         });
 
+        // Only for a demo election that is open; the database refuses anything else.
+        api.MapPost("/elections/{slug}/demo-slip", async (string slug, ElectionReader elections, DemoSlips demoSlips, CancellationToken cancellationToken) =>
+        {
+            ElectionView? election = await elections.FindBySlugAsync(slug, includeDrafts: false, cancellationToken);
+            if (election is null || !election.IsDemo)
+            {
+                return Results.NotFound();
+            }
+
+            string? code = await demoSlips.IssueAsync(election.Id, cancellationToken);
+            return code is null ? Results.NotFound() : Results.Ok(new DemoSlipResponse(code));
+        });
+
         api.MapPost("/cast", async (HttpRequest httpRequest, BallotCaster caster, CancellationToken cancellationToken) =>
         {
             CastRequest? request;

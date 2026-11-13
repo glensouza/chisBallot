@@ -1,6 +1,7 @@
 @page "/e/{Slug}"
 @implements IDisposable
 @inject HttpClient Http
+@inject NavigationManager Navigation
 
 <PageTitle>@(this.election?.Name ?? "Vote")</PageTitle>
 
@@ -17,6 +18,16 @@ else
 
     <h1>@this.election.Name</h1>
     <p>@StatusText(this.election.Status)</p>
+
+    @if (this.election.IsDemo && this.election.Status == 1)
+    {
+        <p>At a real vote the slip comes from the pile on the table. Here, a button hands you one.</p>
+        <button class="chis-button" disabled="@this.busy" @onclick="this.GetSlipAsync">Get a demo slip</button>
+        @if (this.slipError)
+        {
+            <p class="error">No demo slip is available right now.</p>
+        }
+    }
 
     @if (this.turnout is not null)
     {
@@ -39,6 +50,34 @@ else
     private ElectionView? election;
     private TurnoutView? turnout;
     private bool notFound;
+    private bool busy;
+    private bool slipError;
+
+    private async Task GetSlipAsync()
+    {
+        this.busy = true;
+        this.slipError = false;
+        try
+        {
+            HttpResponseMessage response = await this.Http.PostAsync($"api/elections/{Uri.EscapeDataString(this.Slug)}/demo-slip", null);
+            DemoSlipResponse? slip = response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<DemoSlipResponse>() : null;
+            if (slip is null)
+            {
+                this.slipError = true;
+                return;
+            }
+
+            this.Navigation.NavigateTo($"v/{Uri.EscapeDataString(this.Slug)}#{slip.Code}");
+        }
+        catch (HttpRequestException)
+        {
+            this.slipError = true;
+        }
+        finally
+        {
+            this.busy = false;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {

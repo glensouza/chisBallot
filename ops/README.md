@@ -98,6 +98,18 @@ systemd-run --wait --pipe --collect -p User=chisballot-admin   -p EnvironmentFil
 It prints a one-time link. Open it, choose a password, then add a passkey or an
 authenticator app.
 
+## The demo
+
+Every deploy makes the two demo elections if they are missing: `/e/demo` (open,
+the room votes on it) and `/e/demo-tie` (closed, ends in a tie). A deploy never
+touches ballots already in them. To start a fresh demo, for example before a
+meeting, delete the demos' ballots and slips and make them again (demos only,
+never a real election):
+
+```
+systemd-run --wait --pipe --collect -p User=chisballot-migrate -p EnvironmentFile=/etc/chisballot/owner.env -p ProtectSystem=strict -p WorkingDirectory=$(readlink -f /opt/chisballot/migrator/current) /usr/bin/dotnet ChisBallot.Migrator.dll --reset-demo
+```
+
 ## Backups
 
 The backup is encrypted to a public key before it is written, so the files in

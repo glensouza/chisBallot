@@ -23,6 +23,7 @@ string connectionString = builder.Configuration["DatabaseConnectionString"]
 
 builder.Services.AddSingleton(new ElectionReader(connectionString));
 builder.Services.AddSingleton(new BallotCaster(connectionString, Log.Logger));
+builder.Services.AddSingleton(new DemoSlips(connectionString));
 
 WebApplication app = builder.Build();
 

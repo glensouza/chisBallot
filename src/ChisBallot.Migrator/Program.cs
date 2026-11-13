@@ -9,6 +9,10 @@ using ILogger = Serilog.ILogger;
 //   ChisBallot__VotePassword        password for chisballot_vote (required)
 //   ChisBallot__AdminPassword       password for chisballot_admin (required)
 //
+// The two demo elections (demo, demo-tie) are made if they are missing. With
+// --reset-demo they are deleted and made again, which is how a demo is run
+// more than once. Only elections marked as demos are ever deleted.
+//
 // With --seed-dev it also creates a practice election with a few slips, for
 // running the sites on a laptop. Never use --seed-dev against a real database.
 
@@ -25,6 +29,16 @@ if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(votePassword)
 }
 
 await new ChisBallot.Data.Migrator(connectionString, logger).MigrateAsync(new DatabaseUserPasswords(votePassword, adminPassword));
+
+if (args.Contains("--reset-demo"))
+{
+    await DemoSeed.ResetAsync(connectionString);
+    logger.Information("The demo elections were reset.");
+}
+else
+{
+    await DemoSeed.EnsureAsync(connectionString);
+}
 
 if (args.Contains("--seed-dev"))
 {
