@@ -185,3 +185,8 @@ a.chis-button {
     .paper-break { break-before: page; page-break-before: always; }
     .paper-ballot:nth-child(2n) { break-after: page; page-break-after: always; }
 }
+
+/* School logo in the header: a white chip so the blue jaguar stays visible on the blue bar. */
+.chis-header { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.chis-brand { display: inline-flex; align-items: center; gap: 0.75rem; color: #fff; text-decoration: none; }
+.chis-logo { height: 2.4rem; width: auto; background: #fff; border-radius: 999px; padding: 0.25rem 0.6rem; box-sizing: content-box; }
