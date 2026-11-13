@@ -30,3 +30,5 @@ public sealed record CastRequest(Guid ElectionId, string Code, IReadOnlyList<Sel
 public sealed record CastResponse(string? ReceiptCode, string? Error);
 
 public sealed record AdminIdentity(string Name, IReadOnlyList<string> Roles);
+
+public sealed record DemoSlipResponse(string Code);

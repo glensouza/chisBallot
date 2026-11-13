@@ -5,9 +5,9 @@ ballot open on their own phone, vote, and check the receipt. Demo mode
 exists for that, and it has to be safe, because the demo runs on the same
 site as real votes.
 
-**Status:** the application is not written yet. This page is the design
-demo mode must follow and the script for the meeting. Nothing here changes
-how a real election works.
+**Status:** built, except the **Try the demo** button on the home page, the
+bot check and the rate limit on the demo-slip button. Nothing here changes how
+a real election works.
 
 ## How demo mode works
 
@@ -27,9 +27,9 @@ how a real election works.
 - Demo elections turn on everything worth showing: several seats, a write-in
   box, random order and live results. Real elections default to all of them
   off.
-- Demo data is fake and temporary. An admin **resets** the demo before the
-  meeting, which deletes its ballots and codes. Reset works only on demo
-  elections.
+- Demo data is fake and temporary. Both demos are made automatically on the
+  first deploy. To run a fresh one, reset them on the server (`ops/README.md`,
+  "The demo"); reset deletes and remakes only elections marked as demos.
 - A second, pre-filled demo, `/e/demo-tie`, is already Closed and shows a
   tie ending in **Tie: revote needed**. It holds made-up ballots, so there is
   nothing to wait for.
@@ -49,11 +49,10 @@ how a real election works.
 
 **Before the meeting (the day before, and again 15 minutes early)**
 
-1. On the admin site, reset the demo and open it. Its questions are "Pick
-   three field trip spots" (six options, three seats, write-in on) and
-   "Should lunch be longer?" (yes or no).
-2. Load `vote.chisballot.org/e/demo` on your phone. The free database sleeps
-   when idle and the first request can take up to a minute, so do this early.
+1. Reset the demo on the server (`ops/README.md`, "The demo"). It opens by
+   itself. Its questions are "Pick three field trip spots" (six options, three
+   seats, write-in on) and "Should lunch be longer?" (yes or no).
+2. Load `vote.chisballot.org/e/demo` on your phone to check it comes up.
 3. Do one full test vote on your phone, then reset again.
 4. Put the demo page on the projector. Keep screenshots of each step ready
    in case the internet fails.
