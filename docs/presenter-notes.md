@@ -286,7 +286,35 @@ anything where one person's choice matters."
 
 ---
 
-## Slide 11: Small, simple and free to run (1 minute)
+## Slide 11: Why not a form, a poll or a service? (2 minutes)
+
+**Purpose:** answer "why not something we already have?" before it is asked.
+Be fair: these tools are good at what they are for. They are not built for a
+secret ballot.
+
+**Say:**
+- **Online forms (Google, Microsoft):** "To allow one answer per person, a form
+  makes each voter sign in. Now an account is tied to an answer. Every
+  response also carries a time and sits in the owner's account, where it can
+  be read, edited or deleted. And a voter cannot check their own answer was
+  counted."
+- **Paid voting services:** "A company holds the roster and the ballots, the
+  code is closed, and every election costs money. You are trusting their
+  word."
+- **Chat polls and poll sites:** "'Anonymous' is a setting the owner controls,
+  and the tool can still record times or addresses. Without a login, nothing
+  stops one person voting twice."
+- **Raising hands:** "Everyone sees how everyone votes. That is exactly what
+  a secret ballot is for."
+- "chisBallot does the opposite on each point: no login, no time on a ballot,
+  every voter can check their own, and the code is open."
+
+**Do not say** that any of these products is insecure or careless. The point is
+what they are designed to do, not what they get wrong.
+
+---
+
+## Slide 12: Small, simple and free to run (1 minute)
 
 **Purpose:** remove cost and data worries.
 
@@ -307,7 +335,7 @@ can be made only once per vote."
 
 ---
 
-## Slide 12: The ask: a side-by-side pilot (1 minute, then questions)
+## Slide 13: The ask: a side-by-side pilot (1 minute, then questions)
 
 **Purpose:** end on a small, safe decision.
 
