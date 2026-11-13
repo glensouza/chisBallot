@@ -34,3 +34,12 @@ from the tokens in `brand.css`.
   written permission on file, and do not add the paw or other school artwork
   without it.
 - Slides use the same palette (see the proposal deck).
+
+## Installing on a phone or computer
+
+The voting site has a web app manifest (`manifest.webmanifest`) and icons
+(192 and 512 pixels, a maskable 512, and an Apple touch icon), so a member can
+add it to a home screen or install it from the browser. It is only a shortcut
+that opens the same site. There is deliberately **no service worker** and no
+offline mode: the site must always load the current code from the server, and a
+vote cannot be cast offline anyway. The admin site is not installable.
