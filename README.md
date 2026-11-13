@@ -29,10 +29,10 @@ name, the slip's code or a time.
 ## Addresses
 
 | Address | What it is |
-|---|---|
-| www.chisballot.org | Landing page (GitHub Pages). `chisballot.org` redirects here |
-| vote.chisballot.org | Voting site. A voter's ballot is `/v/{slug}#{code}`, an election's page is `/e/{slug}`, its audit page is `/audit/{slug}` |
-| admin.chisballot.org | Admin site, invited admins with a passkey or authenticator app only |
+| --- | --- |
+| [www.chisballot.org](https://www.chisballot.org) | Landing page (GitHub Pages). `chisballot.org` redirects here |
+| [vote.chisballot.org](https://vote.chisballot.org) | Voting site. A voter's ballot is `/v/{slug}#{code}`, an election's page is `/e/{slug}`, its audit page is `/audit/{slug}` |
+| [admin.chisballot.org](https://admin.chisballot.org) | Admin site, invited admins with a passkey or authenticator app only |
 
 ## Documentation
 
@@ -53,7 +53,7 @@ name, the slip's code or a time.
 ## Repository layout
 
 | Path | Contents |
-|---|---|
+| --- | --- |
 | `src/ChisBallot.Vote` | Voting site, the part that runs in the browser (Blazor WebAssembly) |
 | `src/ChisBallot.Vote.Server` | Serves the voting site and its three endpoints: a ballot, turnout, cast a ballot. No admin routes |
 | `src/ChisBallot.Admin` | Admin site (Blazor Server), every page needs the admin role |
@@ -84,7 +84,7 @@ limits and a small proof of work the browser solves (see `docs/anonymity-and-sec
 
 You need the .NET 11 SDK (see `global.json`) and Docker.
 
-```
+```bash
 dotnet run --project src/ChisBallot.AppHost
 ```
 
@@ -98,7 +98,7 @@ out of release builds.
 
 To try the real sign-in locally, make an admin and start with the shortcut off:
 
-```
+```bash
 DatabaseConnectionString=x IdentityDatabasePath=.local/identity.db PublicUrl=http://localhost:5004   dotnet run --project src/ChisBallot.Admin --no-launch-profile -- create-admin you@example.com
 CHISBALLOT_REAL_SIGNIN=1 dotnet run --project src/ChisBallot.AppHost
 ```
@@ -112,7 +112,7 @@ You need the .NET 11 SDK and Docker. The tests start a PostgreSQL container,
 apply the same migration scripts and the same two database users the sites
 use, and exercise the database as those users.
 
-```
+```bash
 dotnet test
 ```
 

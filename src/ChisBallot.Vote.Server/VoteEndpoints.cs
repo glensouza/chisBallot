@@ -61,13 +61,37 @@ public static class VoteEndpoints
             return ballots is null ? Results.NotFound() : Results.Ok(ballots);
         });
 
-        // The commit this build came from, set by the deploy workflow.
-        api.MapGet("/version", () =>
+        // The record to print and sign: results, audit numbers and signature lines. Closed
+        // elections only, and it holds nothing the results and audit pages do not already show.
+        api.MapGet("/elections/{slug}/record.pdf", async (HttpContext http, string slug, ElectionReader elections, ResultsReader results, AuditReader audit, CancellationToken cancellationToken) =>
         {
-            string? informational = typeof(VoteEndpoints).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-            int plus = informational?.IndexOf('+') ?? -1;
-            return Results.Ok(new VersionView(plus < 0 ? null : informational![(plus + 1)..]));
+            ElectionView? election = await elections.FindBySlugAsync(slug, includeDrafts: false, cancellationToken);
+            if (election is null || election.Status != 2)
+            {
+                return Results.NotFound();
+            }
+
+            IReadOnlyList<ContestResult>? contests = await results.GetAsync(election, cancellationToken);
+            IReadOnlyList<PublishedBallot>? ballots = await audit.GetBallotsAsync(election.Id, cancellationToken);
+            TurnoutView? turnout = await elections.GetTurnoutAsync(election.Id, cancellationToken);
+            if (contests is null || ballots is null || turnout is null)
+            {
+                return Results.NotFound();
+            }
+
+            byte[] pdf = ResultsRecord.Build(
+                election,
+                contests,
+                turnout,
+                BallotFingerprint.Compute(ballots),
+                BuildCommit(),
+                $"https://{http.Request.Host}/audit/{Uri.EscapeDataString(election.Slug)}",
+                DateOnly.FromDateTime(DateTime.UtcNow));
+            return Results.File(pdf, "application/pdf", $"{election.Slug}-record.pdf");
         });
+
+        // The commit this build came from, set by the deploy workflow.
+        api.MapGet("/version", () => Results.Ok(new VersionView(BuildCommit())));
 
         // A fresh puzzle. Nothing is remembered about it until it is answered.
         api.MapGet("/challenge", (ProofOfWorkVerifier proofOfWork) => Results.Ok(proofOfWork.Create()));
@@ -160,6 +184,13 @@ public static class VoteEndpoints
 
     // Cloudflare's tunnel connects from this machine, so the real address is in
     // CF-Connecting-IP. It is used only as an in-memory counting key and never logged.
+    private static string? BuildCommit()
+    {
+        string? informational = typeof(VoteEndpoints).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        int plus = informational?.IndexOf('+') ?? -1;
+        return plus < 0 ? null : informational![(plus + 1)..];
+    }
+
     private static string ClientAddress(HttpContext http) =>
         http.Request.Headers["CF-Connecting-IP"].FirstOrDefault() ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 }

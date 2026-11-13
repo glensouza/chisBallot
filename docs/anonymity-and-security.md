@@ -1,24 +1,17 @@
 # Anonymity and security: what to check
 
-This page lists every measure chisBallot relies on to keep a vote anonymous
-and the result honest. Each one says **where to look in the code or
-infrastructure** so you can read the claim here, then confirm it yourself.
+This page lists every measure chisBallot relies on to keep a vote anonymous and the result honest. Each one says **where to look in the code or infrastructure** so you can read the claim here, then confirm it yourself.
+
 Please do. Nothing on this page should be taken on trust.
 
-**Status:** the database layer exists and is tested; the websites do not yet.
-Entries below that name a table, procedure or grant can be checked today. The
-rest are the specification the sites must meet, and as each piece lands its
-entry gets the real file and test name. A measure with no test is a gap worth
-reporting. The server entries can be checked in `ops/`.
+**Status:** the database layer exists and is tested; the websites do not yet. Entries below that name a table, procedure or grant can be checked today. The rest are the specification the sites must meet, and as each piece lands its entry gets the real file and test name. A measure with no test is a gap worth reporting. The server entries can be checked in `ops/`.
 
 ## Checked today
 
-The tests in `tests/ChisBallot.Tests/CastBallotTests.cs` run against a real
-PostgreSQL, using the same migration and the same two database roles as the
-sites.
+The tests in `tests/ChisBallot.Tests/CastBallotTests.cs` run against a real PostgreSQL, using the same migration and the same two database roles as the sites.
 
 | Measure | Code | Test |
-|---|---|---|
+| --- | --- | --- |
 | A code works once | `ballot.cast_ballot` in `src/ChisBallot.Data/Migrations/001_schema.sql` | `A_code_works_once` |
 | A code from another election is refused; a closed or draft election refuses codes | `ballot.cast_ballot` | `A_code_from_another_election_is_refused`, `A_code_is_refused_unless_the_election_is_open` |
 | Consuming the code and inserting the ballot are one transaction; bad choices do not use up the code | `ballot.cast_ballot` | `Choices_that_do_not_fit_are_refused_and_the_code_stays_usable` |
@@ -35,7 +28,7 @@ sites.
 ### Running an election
 
 | Measure | Code | Test |
-|---|---|---|
+| --- | --- | --- |
 | A new election is checked twice, in the admin page and again in the data layer, before it reaches the database | `src/ChisBallot.Contracts/ElectionRequestValidator.cs`, `ElectionAdmin.CreateAsync` | `ElectionRequestValidatorTests`, `A_bad_request_or_a_used_address_is_refused_with_a_reason`, `A_failed_create_leaves_nothing_behind` |
 | A vote cannot open without slips, opens once, and closes once; nothing reopens a closed vote | `ElectionAdmin.OpenAsync`, `CloseAsync`, `tr_elections_lifecycle` | `An_election_with_slips_opens_once_and_then_closes_once`, `A_closed_election_is_final_and_settings_freeze_once_open` |
 | A tie that decides who wins is flagged and never broken; clear winners keep their seats | `src/ChisBallot.Contracts/ResultsCalculator.cs` | `ResultsCalculatorTests` (ten cases, including a level yes/no vote and a vote nobody voted in) |
@@ -44,7 +37,7 @@ sites.
 ### Making the slips
 
 | Measure | Code | Test |
-|---|---|---|
+| --- | --- | --- |
 | Codes are random (80 bits) and only their SHA-256 hash is stored; the plain codes are returned once and never logged | `ElectionAdmin.IssueSlipsAsync`, `VotingCode` | `Slips_are_made_once_and_only_their_hashes_are_stored` |
 | Slips can be made once, only for a draft, 1 to 500 at a time | `ElectionAdmin.IssueSlipsAsync` | `A_slip_count_out_of_range_is_refused`, `Slips_cannot_be_made_for_an_open_election` |
 | The codes are shown on one page, once, and held only in that page's memory; the QR images are drawn by the admin site itself, so no other service sees a code | `ElectionDetail.razor`, `SlipSheet.razor` | checked by hand in a browser |
@@ -52,7 +45,7 @@ sites.
 ### The sites
 
 | Measure | Code | How to check |
-|---|---|---|
+| --- | --- | --- |
 | The voting site has no admin routes and no way to read results or ballots; it exposes a ballot, turnout and casting a ballot | `src/ChisBallot.Vote.Server/VoteEndpoints.cs` | Read the file; the only routes are `GET /api/elections/{slug}`, its `/turnout`, and `POST /api/cast` |
 | The ballot page reads the code from the address fragment, which the browser never sends, then removes it from the address bar; the code is sent only in the body of one POST | `src/ChisBallot.Vote/Pages/Ballot.razor` | Read `OnInitializedAsync` and `SubmitAsync` |
 | The ballot page sends no referrer, nothing is cached, request logging is off, and the site loads no analytics or third-party scripts. A Content-Security-Policy header makes the browser refuse any script, style, image, font or connection that is not from the site itself, on the voting site and on the admin site | `src/ChisBallot.Vote/wwwroot/index.html`, `src/ChisBallot.Vote.Server/SecurityHeaders.cs`, `Program.cs` | Read the files; response headers checked with curl |
@@ -71,7 +64,7 @@ Report problems as a GitHub issue on this repository.
 ## 1. A ballot cannot be linked to a voter
 
 | Measure | Where to check |
-|---|---|
+| --- | --- |
 | The `ballot.ballots` table has no voter, no voting code, no code hash, no timestamp and no sequence number. Its only columns are a random id, the election id and a random receipt code. | `docs/data-model.md`, then the schema migration in the data project |
 | Ballot ids and receipt codes are random, never sequential, so storage order does not reveal voting order. The receipt code is not derived from the voting code. | Ballot creation code; no sequence, `IDENTITY` or time default on any ballot table |
 | `ballot.voting_codes` and `ballot.ballots` share no column except the election id. | Schema migration |
@@ -87,7 +80,7 @@ refused.
 ## 2. Codes are hard to steal or guess
 
 | Measure | Where to check |
-|---|---|
+| --- | --- |
 | Only a hash of each code is stored, so the database alone cannot reproduce a slip. | Code generation and the `ballot.voting_codes.code_hash` column |
 | Codes come from a cryptographic random number generator and are long enough that guessing is infeasible. The length is stated here once the code exists. | Code generation |
 | A code works once and only in its own election. | The single `UPDATE ... WHERE Used = 0` joined to an Open election in `docs/data-model.md`, and its tests |
@@ -97,7 +90,7 @@ refused.
 ## 3. The code never leaks through the network or the logs
 
 | Measure | Where to check |
-|---|---|
+| --- | --- |
 | The voting link is `vote.chisballot.org/v/<slug>#<code>`. The slug only names the election. The part after `#` is never sent by the browser to any server, so it cannot appear in a web server log, a CDN log or a Referer header. | `src/ChisBallot.Vote/Pages/Ballot.razor` reads the code from the address fragment only, then removes it from the address bar |
 | The page sends the code only in the body of a POST to the site's own API. Never in a URL path or query string. | Client and API code; search for any use of the code in a URL |
 | No code, no code hash alongside anything else, and no ballot contents are logged. The cast-ballot request does not log IP addresses. | Serilog configuration and every log call on the cast path |
@@ -108,7 +101,7 @@ refused.
 ## 4. Results are not shown early
 
 | Measure | Where to check |
-|---|---|
+| --- | --- |
 | Turnout (codes used of codes issued) is always public. It reveals how many have voted, not what. | Turnout endpoint |
 | Results are not readable through any API until the election is Closed, unless that election has live results turned on. The setting is chosen while the election is a draft, defaults to off and cannot change once the election is open. | Results endpoint, `ShowLiveResults` in the schema, and the code that freezes it |
 | Even with live results on, only per-choice counts are shown. Receipt codes and the list of ballots wait until Closed. | Results endpoint |
@@ -117,7 +110,7 @@ refused.
 ## 5. Anyone can recount
 
 | Measure | Where to check |
-|---|---|
+| --- | --- |
 | At close, the receipt list and every anonymous ballot are published, so anyone can recount, and each voter can find their own receipt code in the list. | `ballot.get_ballots` in `004_audit.sql` (refuses anything but a Closed election), `AuditReader`, and `AuditTests` |
 | Audit numbers are published with every result: codes issued, codes used, ballots counted. Used must equal counted. | The audit numbers on `AuditPage.razor` (the page shows a pass or fail) and `ResultsCalculator` with its tests |
 | Every election has a public audit page, `/audit/{slug}`, with the audit numbers, the receipt list, every anonymous ballot as a download, and a recount that runs in the browser. Receipt lookup happens in the browser and the receipt is never sent to the server. | `AuditPage.razor`: the search is a filter over the downloaded list and makes no request (`docs/audit-page.md`) |
@@ -130,7 +123,7 @@ refused.
 ## 6. The voting site cannot be used to attack the admin side
 
 | Measure | Where to check |
-|---|---|
+| --- | --- |
 | The voting site contains no admin pages and exposes no admin endpoints. | `ChisBallot.Vote` and `ChisBallot.Vote.Server` contain no admin code |
 | Admin is a separate site, `admin.chisballot.org`, where every route and API call requires a signed-in, invited admin. | The Admin policy in `ChisBallot.Admin/AdminAuth.cs` (invited admins with a second factor) |
 | The two sites use two database users with different rights. The admin user cannot read or change the ballots of an open election. | `chisballot_vote` and `chisballot_admin` grants in the migration; the settings files `ops/lxc/setup.sh` writes |
@@ -139,7 +132,7 @@ refused.
 ## 7. The demo cannot touch a real vote
 
 | Measure | Where to check |
-|---|---|
+| --- | --- |
 | A demo is marked when it is created and can never change into a real election, or the reverse. | `IsDemo` in the schema; admin API and its tests |
 | The public site can issue a code only through one database procedure that refuses any election that is not a demo. Real elections have no code-issuing endpoint, and the voting database user has no insert right on `VotingCodes`. | The procedure and the `chisballot_vote` grants in the migration; vote API routes |
 | Resetting a demo works only on demo elections. | Admin API and its tests |
@@ -151,38 +144,11 @@ Details: `docs/demo.md`.
 
 An honest audit needs the weak points too.
 
-- **A small board can reveal itself.** If the outcome is unanimous, everyone
-  knows how each member voted. This is true of paper too.
-- **Live results make timing visible.** If a tally changes right after a
-  known member is signed off, that member's choice is guessable. The chair
-  should turn live results on only for votes where this does not matter.
-- **Whoever has root on the server can see everything stored.** The server
-  is one container in a home lab run by one person. Root on it (and root on
-  the Proxmox host under it) can read the database files and the passwords in
-  `/etc/chisballot`. Neither database role records who voted, but whoever
-  holds root can read all data. This is the same trust placed in any host,
-  moved from a cloud provider to a person; the code and the setup are public so
-  the claim can be checked, and a recount from the published ballots does not
-  depend on trusting the server.
-- **Backups.** The nightly backup of the database and the admin accounts is
-  encrypted to a public key before it is written, and the private key is not on
-  the server. The weekly Proxmox backup of the whole container, kept on the NAS,
-  is not encrypted: it contains the database files and the passwords. Anyone
-  who can read that NAS folder can read it. The database also keeps its own
-  write-ahead log; in principle it holds when each ballot row was written, and
-  the code-used update and the ballot insert share one transaction. Nothing
-  stored in the tables ties a code to a ballot, but that internal log is
-  outside this repository's control.
-- **Write-ins can mark a ballot.** In a contest that allows write-ins, a
-  voter could type something distinctive to prove how they voted, and the
-  full ballot list is public. Names are length- and character-limited and
-  shown only after close, which reduces but does not remove this. Leave
-  write-ins off where a bought or coerced vote is a concern.
-- **The voter's own device.** A shoulder-surfer, a browser extension or a
-  photo of the receipt screen is outside what a website can prevent.
-- **The deployed code matching this repository.** The audit page shows the
-  commit the site was built from and links to the deploy run, so you can
-  compare it to the code you read. There is still no cryptographic proof
-  that the running site is that build.
-- **Paper is still the fallback.** During any pilot the paper result remains
-  official.
+- **A small board can reveal itself.** If the outcome is unanimous, everyone knows how each member voted. This is true of paper too.
+- **Live results make timing visible.** If a tally changes right after a known member is signed off, that member's choice is guessable. The chair should turn live results on only for votes where this does not matter.
+- **Whoever has root on the server can see everything stored.** The server is one container in a home lab run by one person. Root on it (and root on the Proxmox host under it) can read the database files and the passwords in `/etc/chisballot`. Neither database role records who voted, but whoever holds root can read all data. This is the same trust placed in any host, moved from a cloud provider to a person; the code and the setup are public so the claim can be checked, and a recount from the published ballots does not depend on trusting the server.
+- **Backups.** The nightly backup of the database and the admin accounts is encrypted to a public key before it is written, and the private key is not on the server. The weekly Proxmox backup of the whole container, kept on the NAS, is not encrypted: it contains the database files and the passwords. Anyone who can read that NAS folder can read it. The database also keeps its own write-ahead log; in principle it holds when each ballot row was written, and the code-used update and the ballot insert share one transaction. Nothing stored in the tables ties a code to a ballot, but that internal log is outside this repository's control.
+- **Write-ins can mark a ballot.** In a contest that allows write-ins, a voter could type something distinctive to prove how they voted, and the full ballot list is public. Names are length- and character-limited and shown only after close, which reduces but does not remove this. Leave write-ins off where a bought or coerced vote is a concern.
+- **The voter's own device.** A shoulder-surfer, a browser extension or a photo of the receipt screen is outside what a website can prevent.
+- **The deployed code matching this repository.** The audit page shows the commit the site was built from and links to the deploy run, so you can compare it to the code you read. There is still no cryptographic proof that the running site is that build.
+- **Paper is still the fallback.** During any pilot the paper result remains official.

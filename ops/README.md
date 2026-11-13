@@ -18,7 +18,7 @@ www.chisballot.org      -> GitHub Pages (the landing page)
 ## On the container (`lxc/`)
 
 | File | What it is |
-|---|---|
+| --- | --- |
 | `setup.sh` | Makes the users, the database and owner role, the passwords (kept only in `/etc/chisballot`, root-readable), each program's settings file, and installs everything below. Safe to re-run; never overwrites the passwords. |
 | `chisballot-vote.service`, `chisballot-admin.service` | The two sites, each as its own unprivileged user, sandboxed by systemd. The voting site writes nothing to disk. The admin site writes only its accounts file and sign-in keys. |
 | `chisballot-deploy` | Puts a build into service: copies it, applies database changes, switches the `current` links, restarts, checks both sites answer, and goes back if they do not. The production runner may run this as root and nothing else (one sudo rule, made by `setup.sh`). |
@@ -46,7 +46,7 @@ The container has no network path to the NAS. It writes its encrypted backups to
 a folder on the host; the host copies them to the NAS.
 
 | File | What it is |
-|---|---|
+| --- | --- |
 | `chisballot-backup-sync`, `.service`, `.timer` | Every 30 minutes, copies new `*.age` and `*.sha256` files from the container's outbox to the NAS. It only adds files, copies no links, and removes NAS copies older than 90 days. |
 
 One-time settings in `/etc/pve/lxc/<id>.conf` for the container:

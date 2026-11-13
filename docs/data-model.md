@@ -1,9 +1,6 @@
 # Data model
 
-chisBallot holds any number of elections. Each election has its own
-contests, its own printed voting codes and its own ballots. Nothing connects
-a voting code to a ballot, and nothing connects one election's ballots to
-another's.
+chisBallot holds any number of elections. Each election has its own contests, its own printed voting codes and its own ballots. Nothing connects a voting code to a ballot, and nothing connects one election's ballots to another's.
 
 ## Tables
 
@@ -74,16 +71,12 @@ CREATE TABLE ballot.ballot_write_ins (
 
 ## Rules
 
-**Casting a ballot** is one transaction:
+### Casting a ballot is one transaction
 
-1. `UPDATE ballot.voting_codes SET used = true WHERE election_id = @e AND code_hash = @h AND NOT used`,
-   joined to an election whose `status` is Open. If no row changes, stop:
-   the code is unknown, already used, or belongs to another election.
-2. Insert the ballot, its selections and its write-ins. For each contest,
-   choices plus write-ins must not exceed `MaxSelections`, and write-ins are
-   refused unless the contest has `AllowWriteIn`.
+1. `UPDATE ballot.voting_codes SET used = true WHERE election_id = @e AND code_hash = @h AND NOT used`, joined to an election whose `status` is Open. If no row changes, stop: the code is unknown, already used, or belongs to another election.
+2. Insert the ballot, its selections and its write-ins. For each contest, choices plus write-ins must not exceed `MaxSelections`, and write-ins are refused unless the contest has `AllowWriteIn`.
 
-**Random order (optional, off by default)**
+### Random order (optional, off by default)
 
 - With `ShuffleContests` and `ShuffleChoices`, each voter sees the questions
   and the options in an order of their own. People sitting near each other
@@ -98,7 +91,7 @@ CREATE TABLE ballot.ballot_write_ins (
   saw the screen.
 - A write-in box, when allowed, always stays last in its contest.
 
-**Results and ties**
+### Results and ties
 
 - Each contest counts one vote per choice per ballot. Write-in names are
   counted by `NameKey`: the name trimmed, inner whitespace collapsed and
@@ -124,7 +117,7 @@ CREATE TABLE ballot.ballot_write_ins (
   apostrophes and periods, and write-in names appear only once the election
   is Closed. Live results, when on, show write-ins as a single combined count.
 
-**Demo elections** (`IsDemo`, see `docs/demo.md`)
+### Demo elections (`IsDemo`, see `docs/demo.md`)
 
 - Set when an admin creates the election and immutable afterwards.
 - The only election type where the public site can ask for a code. That goes
@@ -133,16 +126,17 @@ CREATE TABLE ballot.ballot_write_ins (
 - Admin can reset a demo (delete its ballots and codes); reset refuses real
   elections.
 
-**Election lifecycle**
+### Election lifecycle
 
 | Status | Allowed |
-|---|---|
+| --- | --- |
 | Draft | Edit contests and choices, generate codes, print slips |
 | Open | Cast ballots only. Contests, choices and codes are frozen |
 | Closed | Read only. Results, receipt list and audit numbers are published |
 
 - **Turnout is always public**: codes used out of codes issued, updated near
   real time while the election is Open.
+
 - **Results are hidden until the election is closed**, unless the chair
   turned on `ShowLiveResults` for that election while it was still Draft.
   With it on, running tallies (counts per choice, nothing else) are shown
@@ -160,7 +154,7 @@ CREATE TABLE ballot.ballot_write_ins (
   there were.
 - A closed election cannot be reopened. Run a new one instead.
 
-**Anonymity**
+### Anonymity
 
 - Codes are generated per election. A slip from one vote does nothing in
   another, and a member's ballots in different elections cannot be linked.
@@ -168,7 +162,7 @@ CREATE TABLE ballot.ballot_write_ins (
   ids are random so storage order does not reveal voting order.
 - Request logs must never record the code or the ballot contents.
 
-**Audit numbers published with every result**
+### Audit numbers published with every result
 
 - Codes issued, codes used, ballots counted (used must equal counted)
 - The receipt list, and every anonymous ballot, so anyone can recount
@@ -208,19 +202,19 @@ live results on only for votes where that does not matter.
 ## Addresses
 
 | Address | What it is |
-|---|---|
-| www.chisballot.org | Landing page on GitHub Pages. `chisballot.org` redirects here |
-| vote.chisballot.org | Voting site. The root says a slip's QR code is needed to vote |
-| vote.chisballot.org/v/{slug}#{code} | A voter's ballot. The slug says which election the slip is for and is not secret. The code is in the URL fragment, which the browser never sends to a server, so it cannot reach request logs, the CDN or a referrer header |
-| vote.chisballot.org/e/{slug} | Election page: live turnout, live results if enabled, full results once Closed |
-| vote.chisballot.org/audit/{slug} | Audit page: audit numbers, receipt list, every anonymous ballot, in-browser recount and the deployed commit. See `docs/audit-page.md` |
-| admin.chisballot.org | Admin site |
+| --- | --- |
+| [www.chisballot.org](https://www.chisballot.org) | Landing page on GitHub Pages. `chisballot.org` redirects here |
+| [vote.chisballot.org](https://vote.chisballot.org) | Voting site. The root says a slip's QR code is needed to vote |
+| [vote.chisballot.org/v/{slug}#{code}](https://vote.chisballot.org/v/{slug}#{code}) | A voter's ballot. The slug says which election the slip is for and is not secret. The code is in the URL fragment, which the browser never sends to a server, so it cannot reach request logs, the CDN or a referrer header |
+| [vote.chisballot.org/e/{slug}](https://vote.chisballot.org/e/{slug}) | Election page: live turnout, live results if enabled, full results once Closed |
+| [vote.chisballot.org/audit/{slug}](https://vote.chisballot.org/audit/{slug}) | Audit page: audit numbers, receipt list, every anonymous ballot, in-browser recount and the deployed commit. See `docs/audit-page.md` |
+| [admin.chisballot.org](https://admin.chisballot.org) | Admin site |
 
 ## Two deployments
 
 | | Voting site | Admin site |
-|---|---|---|
-| Address | vote.chisballot.org | admin.chisballot.org |
+| --- | --- | --- |
+| Address | [vote.chisballot.org](https://vote.chisballot.org) | [admin.chisballot.org](https://admin.chisballot.org) |
 | Sign-in | None. A slip's code is the only credential | Required on every page and API call; invited admins only |
 | Database user | `chisballot_vote` | `chisballot_admin` |
 | Can do | Cast a ballot, read published results | Create elections, contests and choices; generate codes; open and close |

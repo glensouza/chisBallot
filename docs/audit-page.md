@@ -62,3 +62,27 @@ check their ballot, a teacher can recount without trusting the site, and
 someone technical can compare the running build to the code on GitHub. Where
 that is not enough is listed in `docs/anonymity-and-security.md`, section
 "What this does not protect against".
+
+## The signed record (PDF)
+
+When a vote is closed, the results page and the audit page offer **Download the
+record (PDF) to print and sign**. It is one or two pages: the result of every
+question (winners, or the tie and the seats that go to a revote), the audit
+numbers with the pass or fail check, how to check it, and lines for the board
+chair and two witnesses to sign. It holds nothing that is not already public.
+The signatures are ink on the printed page; the site does not collect them.
+
+The record carries a **fingerprint of the published ballot list**, and the audit
+page shows the same value, so a signed copy can be matched to the ballots. To
+recompute it from the JSON download: take the ballots in receipt-code order (plain
+character-code order); write each as the receipt, a colon, then its lines
+separated by commas, followed by a line feed. A line is the contest id with its
+dashes removed, a slash, then the choice id with its dashes removed, or `w:` and
+the write-in name. Sort a ballot's lines in plain character-code order. The
+fingerprint is the lowercase hex SHA-256 of that text as UTF-8. The code is
+`src/ChisBallot.Contracts/BallotFingerprint.cs`.
+
+The PDF is drawn by a small writer in `src/ChisBallot.Data/PdfWriter.cs` with the
+standard Helvetica and Courier fonts, so no library or font is needed on the
+server. Letters outside the Windows-1252 set (for example Chinese names) print as
+question marks on the record; the audit page and the JSON show them exactly.

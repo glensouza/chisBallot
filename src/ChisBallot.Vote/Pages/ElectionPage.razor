@@ -49,6 +49,10 @@ else
         }
 
         <ResultsView Contests="this.results" />
+        @if (this.election.Status == 2)
+        {
+            <p><a href="api/elections/@this.election.Slug/record.pdf" download>Download the record (PDF) to print and sign</a></p>
+        }
     }
 
     @if (this.turnout is not null)

@@ -66,6 +66,7 @@ else
     {
         <h2>Result</h2>
         <ResultsView Contests="this.results" />
+        <p><a href="api/elections/@this.election.Slug/record.pdf" download>Download the record (PDF) to print and sign</a></p>
 
         <div class="chis-card">
             <h2>Find your receipt</h2>
@@ -100,6 +101,7 @@ else
                 @this.ballots.Count ballots, listed by receipt code. A receipt code is random, so the order says nothing about when anyone voted.
                 A ballot has no name, no slip and no time.
             </p>
+            <p>Fingerprint of this list (SHA-256): <code class="fingerprint">@BallotFingerprint.Compute(this.ballots)</code></p>
             <button class="chis-button" @onclick="this.DownloadJsonAsync">Download JSON</button>
             <button class="chis-button" @onclick="this.DownloadCsvAsync">Download CSV</button>
             @if (this.downloadFailed)
