@@ -365,6 +365,20 @@ before the meeting."
 
 ---
 
+## Slide 14: Who built it (30 seconds)
+
+**Purpose:** say who is behind it, then show that nobody has to trust them.
+
+**Say:**
+- "This was built by Glen Souza, a parent at our school. Glen is an enterprise
+  systems architect with more than 20 years of experience: at Microsoft,
+  serving government agencies and schools, for California courts, and for
+  entertainment companies such as Warner Bros. and Disney."
+- "It is free and open source. You do not have to trust Glen or me: the code
+  is public and every count can be checked."
+
+**Then:** open the floor for questions.
+
 ## Questions to be ready for
 
 | Question | Short answer |

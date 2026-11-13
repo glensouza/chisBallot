@@ -29,6 +29,8 @@ from the tokens in `brand.css`.
 
 - Body text is `--chis-ink` on white. White text only goes on `--chis-blue`.
 - One primary action per screen, in `--chis-blue`.
-- The jaguar and paw artwork belong to the school. Do not add them to the
-  site or to printed slips without written permission from the principal.
+- The jaguar artwork belongs to the school. It is in the site header (a white
+  chip on the blue bar, `logo.png` in each site's `wwwroot`). Keep the principal's
+  written permission on file, and do not add the paw or other school artwork
+  without it.
 - Slides use the same palette (see the proposal deck).
