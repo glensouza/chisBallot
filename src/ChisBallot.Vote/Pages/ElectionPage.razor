@@ -25,7 +25,7 @@ else
         <button class="chis-button" disabled="@this.busy" @onclick="this.GetSlipAsync">Get a demo slip</button>
         @if (this.slipError)
         {
-            <p class="error">No demo slip is available right now.</p>
+            <p class="error">@(this.slipTooMany ? "Too many requests from here. Wait a few minutes." : "No demo slip is available right now.")</p>
         }
     }
 
@@ -66,6 +66,7 @@ else
     private bool notFound;
     private bool busy;
     private bool slipError;
+    private bool slipTooMany;
 
     private async Task GetSlipAsync()
     {
@@ -78,6 +79,7 @@ else
             if (slip is null)
             {
                 this.slipError = true;
+                this.slipTooMany = (int)response.StatusCode == 429;
                 return;
             }
 

@@ -1,4 +1,5 @@
 @page "/"
+@inject HttpClient Http
 
 <PageTitle>chisBallot</PageTitle>
 
@@ -12,3 +13,30 @@
     </p>
     <p>If you do not have a slip, ask the board chair.</p>
 </div>
+
+@if (this.demoOpen)
+{
+    <div class="chis-card">
+        <h2>Try the demo</h2>
+        <p>A practice vote you can try now. Nothing in it counts, and the page says so on every screen.</p>
+        <p><a class="chis-button" href="e/demo">Try the demo</a></p>
+        <p><a href="e/demo-tie">See how a tie is shown</a> | <a href="audit/demo-tie">See an audit page</a></p>
+    </div>
+}
+
+@code {
+    private bool demoOpen;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            ElectionView? demo = await this.Http.GetFromJsonAsync<ElectionView>("api/elections/demo");
+            this.demoOpen = demo is { IsDemo: true, Status: 1 };
+        }
+        catch (HttpRequestException)
+        {
+            this.demoOpen = false;
+        }
+    }
+}

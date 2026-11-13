@@ -72,8 +72,13 @@ public static class VoteEndpoints
         });
 
         // Only for a demo election that is open; the database refuses anything else.
-        api.MapPost("/elections/{slug}/demo-slip", async (string slug, ElectionReader elections, DemoSlips demoSlips, CancellationToken cancellationToken) =>
+        api.MapPost("/elections/{slug}/demo-slip", async (HttpContext http, string slug, ElectionReader elections, DemoSlips demoSlips, VoteLimits limits, CancellationToken cancellationToken) =>
         {
+            if (!limits.DemoSlips.TryAdd(ClientAddress(http)))
+            {
+                return Results.Json(new CastResponse(null, "Too many requests. Wait a few minutes."), statusCode: StatusCodes.Status429TooManyRequests);
+            }
+
             ElectionView? election = await elections.FindBySlugAsync(slug, includeDrafts: false, cancellationToken);
             if (election is null || !election.IsDemo)
             {
@@ -84,8 +89,15 @@ public static class VoteEndpoints
             return code is null ? Results.NotFound() : Results.Ok(new DemoSlipResponse(code));
         });
 
-        api.MapPost("/cast", async (HttpRequest httpRequest, BallotCaster caster, CancellationToken cancellationToken) =>
+        api.MapPost("/cast", async (HttpContext http, BallotCaster caster, VoteLimits limits, CancellationToken cancellationToken) =>
         {
+            HttpRequest httpRequest = http.Request;
+            string client = ClientAddress(http);
+            if (limits.WrongCodes.IsBlocked(client))
+            {
+                return Results.Json(new CastResponse(null, "Too many wrong codes. Wait a few minutes and try again."), statusCode: StatusCodes.Status429TooManyRequests);
+            }
+
             CastRequest? request;
             try
             {
@@ -111,9 +123,24 @@ public static class VoteEndpoints
             return outcome.Status switch
             {
                 CastStatus.Cast => Results.Ok(new CastResponse(outcome.ReceiptCode, null)),
-                CastStatus.CodeRefused => Results.Json(new CastResponse(null, "That code cannot be used."), statusCode: StatusCodes.Status403Forbidden),
+                CastStatus.CodeRefused => RefusedCode(limits, client),
                 _ => Results.BadRequest(new CastResponse(null, "Those choices do not fit this ballot.")),
             };
         });
     }
+
+    // A refused code counts against the client, so a wrong guess costs an attempt.
+    private static IResult RefusedCode(VoteLimits limits, string client)
+    {
+        limits.WrongCodes.Add(client);
+        return Results.Json(new CastResponse(null, "That code cannot be used."), statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    // Cloudflare's tunnel connects from this machine, so the real address is in
+    // CF-Connecting-IP. It is used only as an in-memory counting key and never logged.
+    private static string ClientAddress(HttpContext http) =>
+        http.Request.Headers["CF-Connecting-IP"].FirstOrDefault() ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 }
+
+/// <summary>The two limits the public API enforces, per client address.</summary>
+public sealed record VoteLimits(AttemptCounter WrongCodes, AttemptCounter DemoSlips);
