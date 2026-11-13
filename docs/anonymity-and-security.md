@@ -64,7 +64,7 @@ sites.
 | The local-development admin sign-in is compiled out of release builds, and CI fails if it is not | `#if DEBUG` in `DevAdminHandler.cs` and `AdminAuth.cs`; the "Dev-only admin sign-in" step in `.github/workflows/build-and-deploy.yml` | Read the step; it searches the release DLL |
 | The admin site connects as `chisballot_admin`, the voting site as `chisballot_vote` | `src/ChisBallot.AppHost/AppHost.cs` locally; the server setup when deployed (not written yet) | Read them |
 
-Not covered yet: a bot check (see the note in section 3).
+Not covered yet: nothing on the list; see the "What this does not protect against" section for the limits.
 
 Report problems as a GitHub issue on this repository.
 
@@ -91,7 +91,7 @@ refused.
 | Only a hash of each code is stored, so the database alone cannot reproduce a slip. | Code generation and the `ballot.voting_codes.code_hash` column |
 | Codes come from a cryptographic random number generator and are long enough that guessing is infeasible. The length is stated here once the code exists. | Code generation |
 | A code works once and only in its own election. | The single `UPDATE ... WHERE Used = 0` joined to an Open election in `docs/data-model.md`, and its tests |
-| Wrong guesses are rate-limited: after 30 refused codes from one address in 10 minutes the voting site answers 429 for that address until the window passes. The count is kept in memory only and is never logged. A code has 80 random bits, so guessing one is not feasible; the limit is there to slow a script down. There is no bot check on the ballot page: Cloudflare Turnstile would be the only third-party script on it, which is a cost to every voter for a risk that the code length and the limit already cover. | `AttemptCounter`, `VoteLimits` and the `/api/cast` endpoint in `VoteEndpoints.cs`; `AttemptCounterTests` |
+| Wrong guesses are rate-limited: after 30 refused codes from one address in 10 minutes the voting site answers 429 for that address until the window passes. The count is kept in memory only and is never logged. A code has 80 random bits, so guessing one is not feasible; the limit is there to slow a script down. Every ballot and every demo slip also has to come with a solved puzzle (a proof of work, made by the site and solved by the browser in under a second or two). That makes a script that sends many requests spend real work on each one; it does **not** tell a person from a program, and a determined attacker with a fast machine pays little. It is the self-hosted alternative to a bot check: nothing is loaded from another company, the puzzle holds nothing about the voter, and it is not logged. | `AttemptCounter`, `VoteLimits`, `ProofOfWorkVerifier` and the `/api/cast`, `/api/challenge` endpoints in `VoteEndpoints.cs`; `AttemptCounterTests`, `ProofOfWorkTests` |
 | Unused codes are deleted when an election closes. | `ElectionAdmin.CloseAsync`, `ballot.close_election` |
 
 ## 3. The code never leaks through the network or the logs

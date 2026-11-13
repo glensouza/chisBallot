@@ -69,9 +69,27 @@ public static class VoteEndpoints
             return Results.Ok(new VersionView(plus < 0 ? null : informational![(plus + 1)..]));
         });
 
+        // A fresh puzzle. Nothing is remembered about it until it is answered.
+        api.MapGet("/challenge", (ProofOfWorkVerifier proofOfWork) => Results.Ok(proofOfWork.Create()));
+
         // Only for a demo election that is open; the database refuses anything else.
-        api.MapPost("/elections/{slug}/demo-slip", async (HttpContext http, string slug, ElectionReader elections, DemoSlips demoSlips, VoteLimits limits, CancellationToken cancellationToken) =>
+        api.MapPost("/elections/{slug}/demo-slip", async (HttpContext http, string slug, ElectionReader elections, DemoSlips demoSlips, VoteLimits limits, ProofOfWorkVerifier proofOfWork, CancellationToken cancellationToken) =>
         {
+            DemoSlipRequest? slipRequest;
+            try
+            {
+                slipRequest = await http.Request.ReadFromJsonAsync<DemoSlipRequest>(cancellationToken);
+            }
+            catch (JsonException)
+            {
+                slipRequest = null;
+            }
+
+            if (!proofOfWork.Verify(slipRequest?.Proof))
+            {
+                return Results.Json(new CastResponse(null, "The check did not pass. Reload the page and try again."), statusCode: StatusCodes.Status400BadRequest);
+            }
+
             if (!limits.DemoSlips.TryAdd(ClientAddress(http)))
             {
                 return Results.Json(new CastResponse(null, "Too many requests. Wait a few minutes."), statusCode: StatusCodes.Status429TooManyRequests);
@@ -87,7 +105,7 @@ public static class VoteEndpoints
             return code is null ? Results.NotFound() : Results.Ok(new DemoSlipResponse(code));
         });
 
-        api.MapPost("/cast", async (HttpContext http, BallotCaster caster, VoteLimits limits, CancellationToken cancellationToken) =>
+        api.MapPost("/cast", async (HttpContext http, BallotCaster caster, VoteLimits limits, ProofOfWorkVerifier proofOfWork, CancellationToken cancellationToken) =>
         {
             HttpRequest httpRequest = http.Request;
             string client = ClientAddress(http);
@@ -109,6 +127,12 @@ public static class VoteEndpoints
             if (request is null || string.IsNullOrWhiteSpace(request.Code) || request.Selections is null || request.WriteIns is null)
             {
                 return Results.BadRequest(new CastResponse(null, "That request was not understood."));
+            }
+
+            // The puzzle first: it is cheap to check and a failure here is not a wrong code.
+            if (!proofOfWork.Verify(request.Proof))
+            {
+                return Results.BadRequest(new CastResponse(null, "The check did not pass. Reload the page and try again."));
             }
 
             CastOutcome outcome = await caster.CastAsync(

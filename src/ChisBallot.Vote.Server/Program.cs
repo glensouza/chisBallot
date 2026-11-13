@@ -30,6 +30,12 @@ builder.Services.AddSingleton(new DemoSlips(connectionString));
 // Guessing codes and asking for demo slips in bulk are slowed down per client address.
 // The counts live in memory only and are never logged. The address is the one Cloudflare
 // saw (the tunnel puts it in a header); on a laptop it is the connection's own.
+// Each ballot and each demo slip comes with a solved puzzle (a proof of work). It costs a script
+// some work per request; it does not tell a person from a program, so it sits beside the limits.
+builder.Services.AddSingleton(new ProofOfWorkVerifier(
+    difficulty: builder.Configuration.GetValue("ProofOfWork:Difficulty", 16),
+    lifetime: TimeSpan.FromMinutes(5)));
+
 builder.Services.AddSingleton(new VoteLimits(
     WrongCodes: new AttemptCounter(limit: 30, window: TimeSpan.FromMinutes(10)),
     DemoSlips: new AttemptCounter(limit: 100, window: TimeSpan.FromMinutes(10))));

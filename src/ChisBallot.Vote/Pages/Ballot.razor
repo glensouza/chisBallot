@@ -1,5 +1,6 @@
 @page "/v/{Slug}"
 @inject HttpClient Http
+@inject ProofOfWorkClient ProofOfWork
 @inject NavigationManager Navigation
 
 <PageTitle>Your ballot</PageTitle>
@@ -80,6 +81,10 @@ else
         }
 
         <button class="chis-button" disabled="@this.busy" @onclick="this.SubmitAsync">Submit my vote</button>
+        @if (this.working)
+        {
+            <p class="hint">Securing your vote… this takes a moment.</p>
+        }
     }
 }
 
@@ -93,6 +98,7 @@ else
     private readonly Dictionary<Guid, string> writeIns = [];
     private string code = string.Empty;
     private bool codeFromLink;
+    private bool working;
     private string? loadError;
     private string? error;
     private string? receipt;
@@ -210,13 +216,18 @@ else
         }
 
         this.busy = true;
+        this.working = true;
         try
         {
+            // A short puzzle the browser solves first (see ProofOfWorkClient). Nothing about the voter is in it.
+            ProofOfWorkAnswer? proof = await this.ProofOfWork.SolveAsync();
+            this.working = false;
             CastRequest request = new(
                 this.election.Id,
                 this.code,
                 [.. this.picks.SelectMany(p => p.Value.Select(choice => new SelectionDto(p.Key, choice)))],
-                [.. this.writeIns.Where(w => !string.IsNullOrWhiteSpace(w.Value)).Select(w => new WriteInDto(w.Key, w.Value))]);
+                [.. this.writeIns.Where(w => !string.IsNullOrWhiteSpace(w.Value)).Select(w => new WriteInDto(w.Key, w.Value))],
+                proof);
 
             using HttpResponseMessage response = await this.Http.PostAsJsonAsync("api/cast", request);
             CastResponse? result = await response.Content.ReadFromJsonAsync<CastResponse>();
@@ -237,6 +248,7 @@ else
         }
         finally
         {
+            this.working = false;
             this.busy = false;
         }
     }
