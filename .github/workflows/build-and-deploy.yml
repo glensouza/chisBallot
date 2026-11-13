@@ -126,6 +126,27 @@ jobs:
           compression-level: 0
           if-no-files-found: error
 
+  # Every commit in a pull request must show Verified on GitHub (signed, with a key on the
+  # author's account). Runs on the pull-request runner's host, no code from the PR is built.
+  commits:
+    name: Verified commits
+    if: github.event_name == 'pull_request'
+    runs-on: [self-hosted, pr]
+    steps:
+      - name: Every commit is verified
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          unverified=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json"             "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PR/commits?per_page=100"             | jq -r '.[] | select(.commit.verification.verified != true) | "\(.sha[0:7]) \(.commit.verification.reason)"')
+          if [ -n "$unverified" ]; then
+            echo "These commits are not verified:"
+            echo "$unverified"
+            echo "Sign your commits and push again. See CONTRIBUTING.md, \"Commits must be verified\"."
+            exit 1
+          fi
+          echo "All commits are verified."
+
   deploy:
     name: Deploy to the server
     needs: test

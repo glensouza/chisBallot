@@ -111,6 +111,19 @@ use, and exercise the database as those users.
 dotnet test
 ```
 
+## Contributing
+
+Pull requests are welcome, and you do not need to be an expert. If you have read this far
+you can help: fix a typo, make a page easier to use on a phone, check a claim in the
+security documentation against the code, add a test, translate a screen, or pick one of
+the ideas in the list above. A small change that is clearly explained is a good first
+pull request.
+
+The short version of how it works: the build runs the tests, a style check and a commit
+check on every pull request, and a maintainer reviews it. The rules (code style, signed
+commits, what the site promises about anonymity) are in [CONTRIBUTING.md](CONTRIBUTING.md).
+If something is unclear, open an issue and ask.
+
 ## License
 
 See [LICENSE](LICENSE).
